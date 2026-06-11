@@ -14,6 +14,7 @@ namespace DmEletrico.Core.Routing
         public int CircuitosProcessados { get; set; }
         public int ConduitesCriados { get; set; }
         public int CurvasCriadas { get; set; }
+        public int Conexoes { get; set; }
         public int TrechosCompartilhados { get; set; }
         public List<string> Avisos { get; } = new();
 
@@ -23,6 +24,7 @@ namespace DmEletrico.Core.Routing
             sb.AppendLine($"Circuitos processados: {CircuitosProcessados}");
             sb.AppendLine($"Conduítes criados: {ConduitesCriados}");
             sb.AppendLine($"Curvas (fittings) criadas: {CurvasCriadas}");
+            sb.AppendLine($"Conexões a dispositivos/painel: {Conexoes}");
             sb.AppendLine($"Trechos compartilhados (multi-circuito): {TrechosCompartilhados}");
             if (Avisos.Count > 0)
             {
@@ -147,6 +149,7 @@ namespace DmEletrico.Core.Routing
 
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
+                ConectarPontas(conduits, pontos[i].elem, caminho[0], pontos[i + 1].elem, caminho[caminho.Count - 1], report);
 
                 var diam = options.DiametroForcadoMm > 0 ? options.DiametroForcadoMm : 25;
                 var diamFeet = UnitUtils.ConvertToInternalUnits(diam, UnitTypeId.Millimeters);
@@ -226,6 +229,7 @@ namespace DmEletrico.Core.Routing
                     : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
+                ConectarPontas(conduits, dispositivo, caminho[0], panel, caminho[caminho.Count - 1], report);
                 AplicarParametros(doc, conduits, r, potenciaVa, diametroMm, nCondutores, poles,
                     system.Id.ToString(), dispositivo.Id.ToString(), circuitoNumero);
 
@@ -287,6 +291,45 @@ namespace DmEletrico.Core.Routing
                     SetString(m.Conduit, DmParameters.CircuitosNoTrecho, numeros);
                 }
             }
+        }
+
+        /// <summary>
+        /// Conecta fisicamente as pontas do ramal: o início ao conector do
+        /// dispositivo de origem e o fim ao conector do destino (outro dispositivo
+        /// ou painel). Best-effort — se os conectores forem incompatíveis, mantém a
+        /// coincidência geométrica sem lançar erro.
+        /// </summary>
+        private void ConectarPontas(List<Conduit> conduits, Element? origem, XYZ ptOrigem, Element? destino, XYZ ptDestino, ConduitBuildReport report)
+        {
+            if (conduits.Count == 0) return;
+            if (TentarConectar(conduits[0], ptOrigem, origem)) report.Conexoes++;
+            if (TentarConectar(conduits[conduits.Count - 1], ptDestino, destino)) report.Conexoes++;
+        }
+
+        private static bool TentarConectar(Conduit conduit, XYZ ponto, Element? alvo)
+        {
+            if (alvo == null) return false;
+            var cc = FindConnectorAt(conduit, ponto);
+            var dc = ConectorMaisProximo(alvo, ponto);
+            if (cc == null || dc == null || cc.IsConnected || dc.IsConnected) return false;
+            try { cc.ConnectTo(dc); return true; }
+            catch { return false; }
+        }
+
+        private static Connector? ConectorMaisProximo(Element e, XYZ ponto)
+        {
+            var manager = (e as FamilyInstance)?.MEPModel?.ConnectorManager
+                          ?? (e as MEPCurve)?.ConnectorManager;
+            if (manager == null) return null;
+
+            Connector? melhor = null;
+            double melhorDist = double.MaxValue;
+            foreach (Connector c in manager.Connectors)
+            {
+                var d = c.Origin.DistanceTo(ponto);
+                if (d < melhorDist) { melhorDist = d; melhor = c; }
+            }
+            return melhor;
         }
 
         /// <summary>Escolhe o caminho (parede/teto/ambos) conforme as opções.</summary>

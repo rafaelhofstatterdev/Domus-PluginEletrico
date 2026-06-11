@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using Autodesk.Revit.DB;
 
@@ -36,7 +37,17 @@ namespace DmEletrico.Core
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "DmEletrico", "Families"));
 
-            foreach (var pasta in pastas)
+            // Procura uma pasta "familias" subindo a partir do diretório do .dll
+            // (layout do repositório: <raiz>\familias).
+            var dir = dllDir;
+            for (int i = 0; i < 6 && dir != null; i++)
+            {
+                var cand = Path.Combine(dir, "familias");
+                if (Directory.Exists(cand)) { pastas.Add(cand); break; }
+                dir = Path.GetDirectoryName(dir);
+            }
+
+            foreach (var pasta in pastas.Distinct())
             {
                 if (!Directory.Exists(pasta)) continue;
                 foreach (var f in Directory.GetFiles(pasta, "*.rfa"))

@@ -21,17 +21,28 @@ namespace DmEletrico.Core.Circuits
         {
             if (deviceIds.Count == 0) return null;
 
-            // Só dispositivos com conector elétrico de força podem formar o circuito.
-            var validos = deviceIds.Where(id => TemConectorEletrico(doc.GetElement(id))).ToList();
+            // Só dispositivos com conector elétrico de força LIVRE podem iniciar o circuito.
+            var validos = deviceIds.Where(id => TemConectorPowerLivre(doc.GetElement(id))).ToList();
             if (validos.Count == 0)
                 throw new System.InvalidOperationException(
-                    "Os dispositivos selecionados não possuem conector elétrico de força. " +
-                    "Use famílias elétricas com conector de eletricidade (Power) — luminárias, tomadas e equipamentos.");
+                    "Nenhum dos dispositivos pode iniciar um circuito de força.\n\n" + Diagnostico(doc, deviceIds));
 
             using var tx = new Transaction(doc, "DmEletrico — Criar Circuito");
             tx.Start();
 
-            var system = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
+            ElectricalSystem system;
+            try
+            {
+                system = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
+            }
+            catch (System.Exception ex)
+            {
+                tx.RollBack();
+                throw new System.InvalidOperationException(
+                    "O Revit recusou a criação do circuito.\n\n" + Diagnostico(doc, deviceIds) +
+                    "\nDetalhe: " + ex.Message);
+            }
+
             system.SelectPanel(panel);
             doc.Regenerate();
 
@@ -41,13 +52,44 @@ namespace DmEletrico.Core.Circuits
             return system;
         }
 
-        private static bool TemConectorEletrico(Element? e)
+        /// <summary>True se o elemento tem um conector elétrico de força ainda não ligado.</summary>
+        private static bool TemConectorPowerLivre(Element? e)
         {
             var manager = (e as FamilyInstance)?.MEPModel?.ConnectorManager;
             if (manager == null) return false;
             foreach (Connector c in manager.Connectors)
-                if (c.Domain == Domain.DomainElectrical) return true;
+            {
+                if (c.Domain != Domain.DomainElectrical) continue;
+                if (c.IsConnected) continue;
+                if (c.ElectricalSystemType == ElectricalSystemType.PowerCircuit ||
+                    c.ElectricalSystemType == ElectricalSystemType.UndefinedSystemType)
+                    return true;
+            }
             return false;
+        }
+
+        /// <summary>Descreve os conectores de cada dispositivo para diagnóstico.</summary>
+        private static string Diagnostico(Document doc, ICollection<ElementId> ids)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Conectores encontrados:");
+            foreach (var id in ids.Take(8))
+            {
+                var e = doc.GetElement(id) as FamilyInstance;
+                var manager = e?.MEPModel?.ConnectorManager;
+                sb.Append($"• [{id}] {e?.Name}: ");
+                if (manager == null) { sb.AppendLine("sem conectores MEP."); continue; }
+
+                var descr = manager.Connectors.Cast<Connector>()
+                    .Select(c => c.Domain == Domain.DomainElectrical
+                        ? $"{c.ElectricalSystemType}{(c.IsConnected ? " (ligado)" : "")}"
+                        : c.Domain.ToString());
+                var lista = string.Join(", ", descr);
+                sb.AppendLine(string.IsNullOrEmpty(lista) ? "nenhum conector." : lista);
+            }
+            sb.AppendLine("\nDica: o dispositivo precisa de um conector elétrico 'Power' livre. " +
+                          "Se já mostra Painel/Circuito, ele já está circuitado.");
+            return sb.ToString();
         }
 
         /// <summary>Reatribui um circuito a outro QDC.</summary>

@@ -72,6 +72,10 @@ namespace DmEletrico.Commands
                     return Result.Cancelled;
                 }
                 options.Dispositivos = ids;
+
+                // Retorno visual: realça os dispositivos que serão conectados.
+                uiDoc.Selection.SetElementIds(ids);
+                uiDoc.ShowElements(ids);
             }
 
             var service = new ConduitBuilderService();
