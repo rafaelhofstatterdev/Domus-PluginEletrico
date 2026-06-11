@@ -12,6 +12,7 @@ namespace DmEletrico.UI.Setup
         {
             _temperaturaAmbiente = settings.TemperaturaAmbiente;
             _tensaoNominal = settings.TensaoNominal;
+            _alturaRoteamento = settings.AlturaRoteamento;
             _metodo = settings.Metodo;
         }
 
@@ -38,6 +39,13 @@ namespace DmEletrico.UI.Setup
             set { _tensaoNominal = value; OnPropertyChanged(); }
         }
 
+        private double _alturaRoteamento;
+        public double AlturaRoteamento
+        {
+            get => _alturaRoteamento;
+            set { _alturaRoteamento = value; OnPropertyChanged(); }
+        }
+
         private MetodoInstalacao _metodo;
         public MetodoInstalacao Metodo
         {
@@ -49,6 +57,7 @@ namespace DmEletrico.UI.Setup
         {
             TemperaturaAmbiente = TemperaturaAmbiente,
             TensaoNominal = TensaoNominal,
+            AlturaRoteamento = AlturaRoteamento,
             Metodo = Metodo,
             SetupConcluido = true
         };

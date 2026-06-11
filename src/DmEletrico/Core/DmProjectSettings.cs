@@ -18,6 +18,7 @@ namespace DmEletrico.Core
     {
         public double TemperaturaAmbiente { get; set; } = 30.0; // °C (padrão NBR / Setup)
         public double TensaoNominal { get; set; } = 220.0;      // V
+        public double AlturaRoteamento { get; set; } = 3.0;     // m — elevação da espinha de conduítes
         public MetodoInstalacao Metodo { get; set; } = MetodoInstalacao.Embutido;
         public bool SetupConcluido { get; set; }
 
@@ -28,6 +29,7 @@ namespace DmEletrico.Core
 
             if (TryGetDouble(info, DmParameters.TemperaturaAmbiente, out var temp)) s.TemperaturaAmbiente = temp;
             if (TryGetDouble(info, DmParameters.TensaoNominal, out var v)) s.TensaoNominal = v;
+            if (TryGetDouble(info, DmParameters.AlturaRoteamento, out var h)) s.AlturaRoteamento = h;
 
             var metodo = info.LookupParameter(DmParameters.MetodoInstalacao)?.AsString();
             if (!string.IsNullOrWhiteSpace(metodo) &&
@@ -46,6 +48,7 @@ namespace DmEletrico.Core
             var info = doc.ProjectInformation;
             info.LookupParameter(DmParameters.TemperaturaAmbiente)?.Set(TemperaturaAmbiente);
             info.LookupParameter(DmParameters.TensaoNominal)?.Set(TensaoNominal);
+            info.LookupParameter(DmParameters.AlturaRoteamento)?.Set(AlturaRoteamento);
             info.LookupParameter(DmParameters.MetodoInstalacao)?.Set(Metodo.ToString());
             info.LookupParameter(DmParameters.SetupConcluido)?.Set(SetupConcluido ? 1 : 0);
         }

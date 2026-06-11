@@ -34,6 +34,7 @@ namespace DmEletrico.Core
         public const string TemperaturaAmbiente = "Dm_TemperaturaAmbiente"; // °C
         public const string TensaoNominal = "Dm_TensaoNominal";             // V
         public const string MetodoInstalacao = "Dm_MetodoInstalacao";
+        public const string AlturaRoteamento = "Dm_AlturaRoteamento";       // m (espinha de conduítes)
         public const string SetupConcluido = "Dm_SetupConcluido";           // Yes/No
 
         /// <summary>
@@ -67,12 +68,16 @@ namespace DmEletrico.Core
                 BuiltInCategory.OST_ElectricalEquipment
             };
 
+            // Nota: corrente/potência/queda/seção usam SpecTypeId.Number (valor bruto)
+            // em vez de specs tipados — evita conversões de unidade interna do Revit
+            // e mantém os valores exatamente como calculados, para rastreabilidade.
+            // Comprimento e DiâmetroNominal permanecem Length (convertidos no build).
             return new List<Definition>
             {
                 // Trecho de conduíte
-                new Definition(Comprimento,      SpecTypeId.Length,        isInstance: true, conduit),
-                new Definition(PotenciaAparente, SpecTypeId.ApparentPower,  isInstance: true, conduit),
-                new Definition(CorrenteProjeto,  SpecTypeId.Current,        isInstance: true, conduit),
+                new Definition(Comprimento,      SpecTypeId.Length,         isInstance: true, conduit),
+                new Definition(PotenciaAparente, SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(CorrenteProjeto,  SpecTypeId.Number,         isInstance: true, conduit),
                 new Definition(Fct,              SpecTypeId.Number,         isInstance: true, conduit),
                 new Definition(Fca,              SpecTypeId.Number,         isInstance: true, conduit),
                 new Definition(SecaoAdotada,     SpecTypeId.Number,         isInstance: true, conduit),
@@ -81,9 +86,9 @@ namespace DmEletrico.Core
 
                 // Circuito / dispositivo
                 new Definition(NumeroCircuito,   SpecTypeId.String.Text,    isInstance: true, electrical),
-                new Definition(Potencia,         SpecTypeId.ApparentPower,  isInstance: true, electrical),
+                new Definition(Potencia,         SpecTypeId.Number,         isInstance: true, electrical),
                 new Definition(NumeroPolos,      SpecTypeId.Int.Integer,    isInstance: true, electrical),
-                new Definition(TensaoOperacao,   SpecTypeId.ElectricalPotential, isInstance: true, electrical),
+                new Definition(TensaoOperacao,   SpecTypeId.Number,         isInstance: true, electrical),
                 new Definition(Fase,             SpecTypeId.String.Text,    isInstance: true, electrical),
                 new Definition(TipoCircuito,     SpecTypeId.String.Text,    isInstance: true, electrical),
             };

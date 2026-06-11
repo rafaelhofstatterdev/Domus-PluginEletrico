@@ -97,10 +97,13 @@ namespace DmEletrico.Core
         /// <summary>Parâmetros globais ligados ao ProjectInformation.</summary>
         private static void EnsureProjectInfoParameters(Document doc, DefinitionFile defFile, DefinitionGroup group)
         {
+            // Valores numéricos como SpecTypeId.Number (valor bruto, sem conversão
+            // de unidade) para round-trip previsível entre Setup e leitura.
             var globais = new (string name, ForgeTypeId type)[]
             {
-                (DmParameters.TemperaturaAmbiente, SpecTypeId.HvacTemperature),
-                (DmParameters.TensaoNominal,       SpecTypeId.ElectricalPotential),
+                (DmParameters.TemperaturaAmbiente, SpecTypeId.Number),
+                (DmParameters.TensaoNominal,       SpecTypeId.Number),
+                (DmParameters.AlturaRoteamento,    SpecTypeId.Number),
                 (DmParameters.MetodoInstalacao,    SpecTypeId.String.Text),
                 (DmParameters.SetupConcluido,      SpecTypeId.Boolean.YesNo),
             };
