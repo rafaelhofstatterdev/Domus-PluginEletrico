@@ -136,7 +136,14 @@ namespace DmEletrico.Application
                 name: "DmManualTag",
                 text: "Manual\nTAG",
                 command: typeof(DmManualTagCommand),
-                tooltip: "Seleção pontual de trechos para inserir ou editar TAGs. (Atalho: MT)",
+                tooltip: "Seleção pontual de trechos para inserir TAGs. (Atalho: MT)",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmTagRemove",
+                text: "Remover\nTAG",
+                command: typeof(DmTagRemoveCommand),
+                tooltip: "Seleciona e remove uma TAG.",
                 availability: AvailabilityNames.ElectricalElements);
         }
 

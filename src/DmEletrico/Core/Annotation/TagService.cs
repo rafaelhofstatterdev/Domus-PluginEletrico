@@ -46,6 +46,7 @@ namespace DmEletrico.Core.Annotation
             }
 
             var jaEtiquetados = ConduitesJaEtiquetados(doc, view);
+            var ocupados = PosicoesDeTags(doc, view);
 
             var conduites = new FilteredElementCollector(doc, view.Id)
                 .OfCategory(BuiltInCategory.OST_Conduit)
@@ -73,12 +74,24 @@ namespace DmEletrico.Core.Annotation
                 var ponto = MidPoint(conduit);
                 if (ponto == null) continue;
 
+                ponto = EvitarSobreposicao(ponto, ocupados);
+                ocupados.Add(ponto);
+
                 CriarTag(doc, view, symbol.Id, new Reference(conduit), ponto);
                 report.TagsCriadas++;
             }
 
             tx.Commit();
             return report;
+        }
+
+        /// <summary>Remove uma TAG.</summary>
+        public static void Remove(Document doc, ElementId tagId)
+        {
+            using var tx = new Transaction(doc, "DmEletrico — Remover TAG");
+            tx.Start();
+            if (doc.GetElement(tagId) != null) doc.Delete(tagId);
+            tx.Commit();
         }
 
         /// <summary>TAG manual: insere uma etiqueta no conduíte indicado, no ponto clicado.</summary>
@@ -117,6 +130,27 @@ namespace DmEletrico.Core.Annotation
                 .OfCategory(BuiltInCategory.OST_ConduitTags)
                 .Cast<FamilySymbol>()
                 .FirstOrDefault();
+
+        private const double SobrepTolFeet = 0.8; // ~24 cm
+
+        private static List<XYZ> PosicoesDeTags(Document doc, View view)
+            => new FilteredElementCollector(doc, view.Id)
+                .OfClass(typeof(IndependentTag))
+                .Cast<IndependentTag>()
+                .Select(t => t.TagHeadPosition)
+                .ToList();
+
+        private static XYZ EvitarSobreposicao(XYZ ponto, List<XYZ> ocupados)
+        {
+            var p = ponto;
+            int tentativas = 0;
+            while (ocupados.Any(o => o.DistanceTo(p) < SobrepTolFeet) && tentativas < 12)
+            {
+                p = new XYZ(p.X, p.Y + SobrepTolFeet, p.Z);
+                tentativas++;
+            }
+            return p;
+        }
 
         private static HashSet<ElementId> ConduitesJaEtiquetados(Document doc, View view)
         {
