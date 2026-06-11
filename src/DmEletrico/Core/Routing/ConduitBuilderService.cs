@@ -62,22 +62,29 @@ namespace DmEletrico.Core.Routing
             public double Fct;
         }
 
-        public ConduitBuildReport Build(Document doc, DmProjectSettings settings)
+        /// <summary>Ponto de entrada principal: usa as opções da janela de configuração.</summary>
+        public ConduitBuildReport Build(Document doc, DmProjectSettings settings, ConduitBuildOptions options)
         {
+            if (options.Modo == ModoSelecao.DispositivosSelecionados)
+                return BuildBetweenDevices(doc, settings, options);
+
             var systems = new FilteredElementCollector(doc)
                 .OfClass(typeof(ElectricalSystem))
                 .Cast<ElectricalSystem>()
                 .ToList();
-            return BuildForSystems(doc, settings, systems);
+            return BuildForSystems(doc, settings, systems, options);
         }
 
         /// <summary>Constrói os conduítes apenas para os circuitos informados (usado pelo Route Fit).</summary>
-        public ConduitBuildReport BuildForSystems(Document doc, DmProjectSettings settings, IEnumerable<ElectricalSystem> systems)
+        public ConduitBuildReport BuildForSystems(
+            Document doc, DmProjectSettings settings, IEnumerable<ElectricalSystem> systems, ConduitBuildOptions? options = null)
         {
             var report = new ConduitBuildReport();
+            options ??= ConduitBuildOptions.Default(doc);
 
-            var conduitTypeId = settings.ResolveConduitTypeId(doc);
-            if (conduitTypeId == ElementId.InvalidElementId)
+            var tetoId = options.ResolveTetoPiso(doc);
+            var paredeId = options.ResolveParede(doc);
+            if (tetoId == ElementId.InvalidElementId)
             {
                 report.Avisos.Add("Nenhum tipo de conduíte (ConduitType) carregado no projeto.");
                 return report;
@@ -89,7 +96,7 @@ namespace DmEletrico.Core.Routing
             {
                 try
                 {
-                    ProcessSystem(doc, settings, system, conduitTypeId, report, metas);
+                    ProcessSystem(doc, settings, system, tetoId, paredeId, options, report, metas);
                 }
                 catch (Exception ex)
                 {
@@ -101,9 +108,61 @@ namespace DmEletrico.Core.Routing
             return report;
         }
 
+        /// <summary>
+        /// Modo "dispositivos selecionados": conecta em sequência apenas os
+        /// dispositivos escolhidos (ex.: dois dispositivos), sem passar pelo QDC.
+        /// </summary>
+        public ConduitBuildReport BuildBetweenDevices(Document doc, DmProjectSettings settings, ConduitBuildOptions options)
+        {
+            var report = new ConduitBuildReport();
+            var tetoId = options.ResolveTetoPiso(doc);
+            var paredeId = options.ResolveParede(doc);
+            if (tetoId == ElementId.InvalidElementId)
+            {
+                report.Avisos.Add("Nenhum tipo de conduíte carregado no projeto.");
+                return report;
+            }
+
+            var pontos = options.Dispositivos
+                .Select(id => doc.GetElement(id))
+                .Where(e => e != null)
+                .Select(e => (elem: e, pt: ElectricalConnectorOrigin(e) ?? LocationOf(e)))
+                .Where(x => x.pt != null)
+                .ToList();
+
+            if (pontos.Count < 2)
+            {
+                report.Avisos.Add("Selecione ao menos dois dispositivos com conector/localização.");
+                return report;
+            }
+
+            var levelId = ResolveLevelId(doc, pontos[0].elem);
+            var levelElev = (doc.GetElement(levelId) as Level)?.Elevation ?? 0.0;
+            var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(AmbienteInstalacao.Teto), UnitTypeId.Meters);
+            var spineZ = levelElev + offsetFeet;
+
+            for (int i = 0; i < pontos.Count - 1; i++)
+            {
+                var caminho = options.AnguloPlanta == AnguloPlanta.Livre
+                    ? OrthogonalRouter.RouteDireto(pontos[i].pt!, pontos[i + 1].pt!)
+                    : OrthogonalRouter.Route(pontos[i].pt!, pontos[i + 1].pt!, spineZ);
+
+                var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
+                CriarCurvas(doc, conduits, report);
+
+                var diam = options.DiametroForcadoMm > 0 ? options.DiametroForcadoMm : 25;
+                var diamFeet = UnitUtils.ConvertToInternalUnits(diam, UnitTypeId.Millimeters);
+                foreach (var c in conduits)
+                    SetDouble(c, DmParameters.DiametroNominal, diamFeet);
+            }
+
+            return report;
+        }
+
         private void ProcessSystem(
             Document doc, DmProjectSettings settings, ElectricalSystem system,
-            ElementId conduitTypeId, ConduitBuildReport report, List<ConduitMeta> metas)
+            ElementId tetoId, ElementId paredeId, ConduitBuildOptions options,
+            ConduitBuildReport report, List<ConduitMeta> metas)
         {
             var panel = system.BaseEquipment;
             if (panel == null)
@@ -151,7 +210,8 @@ namespace DmEletrico.Core.Routing
                 var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(ambiente), UnitTypeId.Meters);
                 var spineZ = levelElev + offsetFeet;
 
-                var caminho = settings.Modo == ModoRoteamento.Direto
+                var direto = options.AnguloPlanta == AnguloPlanta.Livre || settings.Modo == ModoRoteamento.Direto;
+                var caminho = direto
                     ? OrthogonalRouter.RouteDireto(devPt, panelPt)
                     : OrthogonalRouter.Route(devPt, panelPt, spineZ);
 
@@ -166,8 +226,10 @@ namespace DmEletrico.Core.Routing
                     CircuitosAgrupados = 1 // ajustado no pós-passe (FCA real)
                 });
 
-                var diametroMm = ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
-                var conduits = CriarConduites(doc, conduitTypeId, levelId, caminho, report);
+                var diametroMm = options.DiametroForcadoMm > 0
+                    ? options.DiametroForcadoMm
+                    : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
+                var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
                 AplicarParametros(doc, conduits, r, potenciaVa, diametroMm, nCondutores,
                     system.Id.ToString(), dispositivo.Id.ToString(), circuitoNumero);
@@ -233,7 +295,7 @@ namespace DmEletrico.Core.Routing
         // --- Criação de geometria ---
 
         private List<Conduit> CriarConduites(
-            Document doc, ElementId typeId, ElementId levelId, IList<XYZ> caminho, ConduitBuildReport report)
+            Document doc, ElementId tetoId, ElementId paredeId, ElementId levelId, IList<XYZ> caminho, ConduitBuildReport report)
         {
             var conduits = new List<Conduit>();
             for (int i = 0; i < caminho.Count - 1; i++)
@@ -241,6 +303,10 @@ namespace DmEletrico.Core.Routing
                 var a = caminho[i];
                 var b = caminho[i + 1];
                 if (a.DistanceTo(b) <= Tol) continue;
+
+                // Trecho predominantemente vertical → tipo de parede; senão teto/piso.
+                var vertical = System.Math.Abs(b.Z - a.Z) > System.Math.Abs(b.X - a.X) + System.Math.Abs(b.Y - a.Y);
+                var typeId = vertical && paredeId != ElementId.InvalidElementId ? paredeId : tetoId;
 
                 var conduit = Conduit.Create(doc, typeId, a, b, levelId);
                 conduits.Add(conduit);

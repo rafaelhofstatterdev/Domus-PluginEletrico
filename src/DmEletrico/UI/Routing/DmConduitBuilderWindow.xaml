@@ -1,0 +1,56 @@
+<Window x:Class="DmEletrico.UI.Routing.DmConduitBuilderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DmEletrico — Construir Conduítes"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,8,0,2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="16">
+
+        <GroupBox Header="Modo de seleção" Padding="6">
+            <ComboBox ItemsSource="{Binding Modos}" SelectedItem="{Binding Modo}" />
+        </GroupBox>
+
+        <GroupBox Header="Configurações dos conduítes" Padding="6" Margin="0,10,0,0">
+            <StackPanel>
+                <TextBlock Text="Tipo de Conduíte de Teto/Piso" />
+                <ComboBox ItemsSource="{Binding TiposConduite}" SelectedItem="{Binding TipoTetoPiso}" />
+
+                <TextBlock Text="Tipo de Conduíte de Parede" />
+                <ComboBox ItemsSource="{Binding TiposConduite}" SelectedItem="{Binding TipoParede}" />
+
+                <TextBlock Text="Diâmetro do Conduíte" />
+                <ComboBox ItemsSource="{Binding Diametros}" SelectedItem="{Binding Diametro}" />
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                        <TextBlock Text="Ângulos em planta" />
+                        <ComboBox ItemsSource="{Binding AngulosPlanta}" SelectedItem="{Binding AnguloPlanta}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                        <TextBlock Text="Ângulos na parede" />
+                        <ComboBox ItemsSource="{Binding AngulosParede}" SelectedItem="{Binding AnguloParede}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Orientação do conduíte (quando possível)" />
+                <ComboBox ItemsSource="{Binding Orientacoes}" SelectedItem="{Binding Orientacao}" />
+            </StackPanel>
+        </GroupBox>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancelar" Width="100" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Selecionar" Width="100" IsDefault="True" Click="OnSelecionar" />
+        </StackPanel>
+    </StackPanel>
+</Window>
