@@ -29,26 +29,38 @@ namespace DmEletrico.Commands
                 .OfClass(typeof(FamilyInstance))
                 .Cast<FamilyInstance>();
 
-            var orfaos = elementos.Where(SemCircuito).ToList();
+            var semCircuito = elementos.Where(SemCircuito).ToList();
 
-            if (orfaos.Count == 0)
+            // Circuitos sem QDC atribuído.
+            var circuitosSemQdc = new FilteredElementCollector(doc)
+                .OfClass(typeof(ElectricalSystem))
+                .Cast<ElectricalSystem>()
+                .Where(s => s.BaseEquipment == null)
+                .ToList();
+
+            if (semCircuito.Count == 0 && circuitosSemQdc.Count == 0)
             {
-                TaskDialog.Show("DmEletrico", "Nenhum dispositivo elétrico desconectado encontrado.");
+                TaskDialog.Show("DmEletrico", "Nenhum dispositivo desconectado nem circuito sem QDC.");
                 return Result.Succeeded;
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine($"{orfaos.Count} dispositivo(s) sem circuito atribuído:\n");
-            foreach (var fi in orfaos.Take(50))
+
+            sb.AppendLine($"Dispositivos SEM circuito: {semCircuito.Count}");
+            foreach (var fi in semCircuito.Take(40))
             {
                 var p = (fi.Location as LocationPoint)?.Point;
                 var loc = p != null ? $"({p.X:F1}, {p.Y:F1}, {p.Z:F1})" : "—";
                 sb.AppendLine($"• [{fi.Id}] {fi.Category?.Name} — {fi.Name} {loc}");
             }
-            if (orfaos.Count > 50) sb.AppendLine($"\n… e mais {orfaos.Count - 50}.");
+            if (semCircuito.Count > 40) sb.AppendLine($"… e mais {semCircuito.Count - 40}.");
 
-            // TODO: substituir por janela WPF com seleção/zoom nos elementos.
-            TaskDialog.Show("DmEletrico — Dispositivos Desconectados", sb.ToString());
+            sb.AppendLine($"\nCircuitos SEM QDC atribuído: {circuitosSemQdc.Count}");
+            foreach (var s in circuitosSemQdc.Take(40))
+                sb.AppendLine($"• [{s.Id}] Circuito {(string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber)} — {s.Name}");
+            if (circuitosSemQdc.Count > 40) sb.AppendLine($"… e mais {circuitosSemQdc.Count - 40}.");
+
+            TaskDialog.Show("DmEletrico — Desconectados", sb.ToString());
             return Result.Succeeded;
         }
 

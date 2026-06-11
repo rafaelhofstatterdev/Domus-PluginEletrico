@@ -80,6 +80,20 @@ namespace DmEletrico.Application
                 availability: AvailabilityNames.ElectricalElements);
 
             AddButton(panel, asm,
+                name: "DmCreateCircuit",
+                text: "Criar\nCircuito",
+                command: typeof(DmCreateCircuitCommand),
+                tooltip: "Cria um circuito a partir dos dispositivos selecionados e atribui a um QDC.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmCircuitManager",
+                text: "Gerenciar\nCircuitos",
+                command: typeof(DmCircuitManagerCommand),
+                tooltip: "Lista os circuitos e permite reatribuir QDC, renumerar e balancear fases.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
                 name: "DmCheckDisconnected",
                 text: "Dispositivos\nDesconectados",
                 command: typeof(DmCheckDisconnectedCommand),

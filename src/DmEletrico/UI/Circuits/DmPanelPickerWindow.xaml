@@ -1,0 +1,16 @@
+<Window x:Class="DmEletrico.UI.Circuits.DmPanelPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DmEletrico — Selecionar QDC"
+        Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="Quadro de distribuição (QDC) de destino:" Margin="0,0,0,6" />
+        <ComboBox x:Name="Combo" ItemsSource="{Binding Paineis}" SelectedItem="{Binding Selecionado}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Cancelar" Width="90" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="OK" Width="90" IsDefault="True" Click="OnOk" />
+        </StackPanel>
+    </StackPanel>
+</Window>
