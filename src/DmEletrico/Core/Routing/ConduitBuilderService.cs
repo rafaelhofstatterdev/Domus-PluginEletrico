@@ -262,6 +262,9 @@ namespace DmEletrico.Core.Routing
 
                 try
                 {
+                    // NewElbowFitting seleciona a família de curva conforme as
+                    // Routing Preferences do ConduitType escolhido no Setup — assim
+                    // as preferências de roteamento do template são respeitadas.
                     doc.Create.NewElbowFitting(con1, con2);
                     report.CurvasCriadas++;
                 }

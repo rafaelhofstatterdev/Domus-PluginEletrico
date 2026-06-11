@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DmEletrico", "src\DmEletrico\DmEletrico.csproj", "{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F4A5B6C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DmEletrico.Tests", "tests\DmEletrico.Tests\DmEletrico.Tests.csproj", "{B2C3D4E5-F6A7-48B9-AC0D-2E3F4A5B6C7D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -14,6 +16,10 @@ Global
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F4A5B6C}.Debug|x64.Build.0 = Debug|x64
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F4A5B6C}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F4A5B6C}.Release|x64.Build.0 = Release|x64
+		{B2C3D4E5-F6A7-48B9-AC0D-2E3F4A5B6C7D}.Debug|x64.ActiveCfg = Debug|x64
+		{B2C3D4E5-F6A7-48B9-AC0D-2E3F4A5B6C7D}.Debug|x64.Build.0 = Debug|x64
+		{B2C3D4E5-F6A7-48B9-AC0D-2E3F4A5B6C7D}.Release|x64.ActiveCfg = Release|x64
+		{B2C3D4E5-F6A7-48B9-AC0D-2E3F4A5B6C7D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -37,6 +37,9 @@ namespace DmEletrico.Commands
                 // 1) Injeção dos parâmetros compartilhados.
                 SharedParameterInjector.EnsureParameters(doc);
 
+                // 1.1) Carrega famílias necessárias (TAG de conduíte etc.), se houver.
+                FamilyLoaderService.LoadMissingFamilies(doc);
+
                 // 2) Persistência das variáveis globais.
                 vm.ToSettings().Write(doc);
 
