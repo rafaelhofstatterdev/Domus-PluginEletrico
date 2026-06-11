@@ -64,6 +64,16 @@ namespace DmEletrico.Core.Routing
 
         public ConduitBuildReport Build(Document doc, DmProjectSettings settings)
         {
+            var systems = new FilteredElementCollector(doc)
+                .OfClass(typeof(ElectricalSystem))
+                .Cast<ElectricalSystem>()
+                .ToList();
+            return BuildForSystems(doc, settings, systems);
+        }
+
+        /// <summary>Constrói os conduítes apenas para os circuitos informados (usado pelo Route Fit).</summary>
+        public ConduitBuildReport BuildForSystems(Document doc, DmProjectSettings settings, IEnumerable<ElectricalSystem> systems)
+        {
             var report = new ConduitBuildReport();
 
             var conduitTypeId = settings.ResolveConduitTypeId(doc);
@@ -72,11 +82,6 @@ namespace DmEletrico.Core.Routing
                 report.Avisos.Add("Nenhum tipo de conduíte (ConduitType) carregado no projeto.");
                 return report;
             }
-
-            var systems = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .ToList();
 
             var metas = new List<ConduitMeta>();
 

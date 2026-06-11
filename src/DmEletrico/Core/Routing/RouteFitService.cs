@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
+using DmEletrico.Core;
 
 namespace DmEletrico.Core.Routing
 {
@@ -11,6 +12,7 @@ namespace DmEletrico.Core.Routing
         public int TrechosInvalidos { get; set; }
         public int TrechosRemovidos { get; set; }
         public int FittingsOrfaosRemovidos { get; set; }
+        public int CircuitosReroteados { get; set; }
         public List<string> Avisos { get; } = new();
 
         public override string ToString()
@@ -19,6 +21,7 @@ namespace DmEletrico.Core.Routing
             sb.AppendLine($"Trechos com geometria inválida: {TrechosInvalidos}");
             sb.AppendLine($"Trechos removidos: {TrechosRemovidos}");
             sb.AppendLine($"Curvas órfãs removidas: {FittingsOrfaosRemovidos}");
+            sb.AppendLine($"Circuitos re-roteados (dispositivo movido): {CircuitosReroteados}");
             if (Avisos.Count > 0)
             {
                 sb.AppendLine("\nAvisos:");
@@ -43,17 +46,74 @@ namespace DmEletrico.Core.Routing
     /// </summary>
     public sealed class RouteFitService
     {
-        private const double LengthTolFeet = 1e-3; // ~0,3 mm
+        private const double LengthTolFeet = 1e-3;   // ~0,3 mm
+        private const double MoveTolFeet = 0.05;      // ~15 mm: tolerância de movimentação
 
-        public RouteFitReport Fit(Document doc)
+        public RouteFitReport Fit(Document doc, DmProjectSettings settings)
         {
             var report = new RouteFitReport();
 
             RemoverTrechosDegenerados<Conduit>(doc, report);
             RemoverTrechosDegenerados<CableTray>(doc, report);
+            ReRotearCircuitosAfetados(doc, settings, report);
             RemoverFittingsOrfaos(doc, report);
 
             return report;
+        }
+
+        /// <summary>
+        /// Detecta circuitos cujo dispositivo terminal não coincide mais com a ponta
+        /// do conduíte (movimentação) e re-roteia esses circuitos via Conduit Builder.
+        /// </summary>
+        private void ReRotearCircuitosAfetados(Document doc, DmProjectSettings settings, RouteFitReport report)
+        {
+            var conduites = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Conduit)
+                .WhereElementIsNotElementType()
+                .Cast<Conduit>()
+                .Where(c => !string.IsNullOrWhiteSpace(c.LookupParameter(DmParameters.CircuitoOrigemId)?.AsString()))
+                .ToList();
+
+            // Agrupa conduítes por circuito de origem.
+            var porCircuito = conduites
+                .GroupBy(c => c.LookupParameter(DmParameters.CircuitoOrigemId)!.AsString());
+
+            var afetados = new List<ElectricalSystem>();
+            var idsParaRemover = new List<ElementId>();
+
+            foreach (var grupo in porCircuito)
+            {
+                if (!long.TryParse(grupo.Key, out var raw)) continue;
+                var system = doc.GetElement(new ElementId(raw)) as ElectricalSystem;
+                if (system == null) continue;
+
+                var pontas = grupo
+                    .Select(c => (c.Location as LocationCurve)?.Curve)
+                    .Where(cv => cv != null)
+                    .SelectMany(cv => new[] { cv!.GetEndPoint(0), cv.GetEndPoint(1) })
+                    .ToList();
+
+                var moveu = system.Elements.Cast<Element>()
+                    .Where(e => e.Id != system.BaseEquipment?.Id)
+                    .Select(e => (e.Location as LocationPoint)?.Point)
+                    .Where(p => p != null)
+                    .Any(p => !pontas.Any(pt => pt.DistanceTo(p) <= MoveTolFeet));
+
+                if (moveu)
+                {
+                    afetados.Add(system);
+                    idsParaRemover.AddRange(grupo.Select(c => c.Id));
+                }
+            }
+
+            if (afetados.Count == 0) return;
+
+            foreach (var id in idsParaRemover)
+                if (doc.GetElement(id) != null) doc.Delete(id);
+
+            var rebuild = new ConduitBuilderService().BuildForSystems(doc, settings, afetados);
+            report.CircuitosReroteados = afetados.Count;
+            report.Avisos.AddRange(rebuild.Avisos);
         }
 
         private void RemoverTrechosDegenerados<T>(Document doc, RouteFitReport report) where T : MEPCurve
