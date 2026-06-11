@@ -27,6 +27,7 @@ namespace DmEletrico.Application
             BuildCircuitsPanel(app, assemblyPath);
             BuildAnnotationPanel(app, assemblyPath);
             BuildDocPanel(app, assemblyPath);
+            BuildCoordinationPanel(app, assemblyPath);
         }
 
         private static void BuildConfigPanel(UIControlledApplication app, string asm)
@@ -72,11 +73,38 @@ namespace DmEletrico.Application
             var panel = app.CreateRibbonPanel(DmApplication.TabName, "Circuitos");
 
             AddButton(panel, asm,
+                name: "DmCircuitLoad",
+                text: "Atribuir\nCarga",
+                command: typeof(DmCircuitLoadCommand),
+                tooltip: "Configura potência, polos, tensão e tipo dos dispositivos selecionados.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
                 name: "DmCheckDisconnected",
                 text: "Dispositivos\nDesconectados",
                 command: typeof(DmCheckDisconnectedCommand),
                 tooltip: "Varre o modelo e lista famílias elétricas sem circuito atribuído.",
                 availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmPhaseBalance",
+                text: "Balancear\nFases",
+                command: typeof(DmPhaseBalanceCommand),
+                tooltip: "Distribui os circuitos dos QDCs entre as fases A, B e C buscando equilíbrio de carga.",
+                availability: AvailabilityNames.ElectricalElements);
+        }
+
+        private static void BuildCoordinationPanel(UIControlledApplication app, string asm)
+        {
+            var panel = app.CreateRibbonPanel(DmApplication.TabName, "Coordenação");
+
+            // Sem availability: útil mesmo quando o hospedeiro não tem elementos
+            // elétricos (os elementos vêm dos modelos vinculados).
+            AddButton(panel, asm,
+                name: "DmLinkCoordination",
+                text: "Modelos\nVinculados",
+                command: typeof(DmLinkCoordinationCommand),
+                tooltip: "Lê elementos elétricos dos modelos vinculados (RevitLinkInstance) e reporta no hospedeiro.");
         }
 
         private static void BuildAnnotationPanel(UIControlledApplication app, string asm)

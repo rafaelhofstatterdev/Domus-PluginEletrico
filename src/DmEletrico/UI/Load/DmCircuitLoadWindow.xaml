@@ -1,0 +1,34 @@
+<Window x:Class="DmEletrico.UI.Load.DmCircuitLoadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DmEletrico — Atribuir Carga"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,8,0,2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="16">
+        <TextBlock Text="{Binding Resumo}" FontWeight="Normal" Foreground="#555" Margin="0,0,0,4" />
+
+        <TextBlock Text="Potência (W/VA)" />
+        <TextBox Text="{Binding Potencia, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="Número de polos" />
+        <ComboBox ItemsSource="{Binding PolosDisponiveis}" SelectedItem="{Binding NumeroPolos}" />
+
+        <TextBlock Text="Tensão de operação (V)" />
+        <ComboBox ItemsSource="{Binding TensoesDisponiveis}" SelectedItem="{Binding TensaoOperacao}" />
+
+        <TextBlock Text="Tipo de circuito" />
+        <ComboBox ItemsSource="{Binding TiposDisponiveis}" SelectedItem="{Binding TipoCircuito}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Cancelar" Width="90" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Aplicar" Width="90" IsDefault="True" Click="OnAplicar" />
+        </StackPanel>
+    </StackPanel>
+</Window>
