@@ -36,6 +36,28 @@ namespace DmEletrico.Core.Documentation
 
         private readonly ElectricalCalculator _calc = new();
 
+        /// <summary>
+        /// Regenera os unifilares: apaga as vistas de unifilar do DmEletrico
+        /// existentes e gera novamente a partir do estado atual do modelo.
+        /// </summary>
+        public UnifilarReport Regenerate(Document doc, DmProjectSettings settings)
+        {
+            var antigas = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewDrafting)).Cast<ViewDrafting>()
+                .Where(v => v.Name.StartsWith("DmEletrico - Unifilar"))
+                .Select(v => v.Id).ToList();
+
+            using (var tx = new Transaction(doc, "DmEletrico — Limpar Unifilares"))
+            {
+                tx.Start();
+                foreach (var id in antigas)
+                    if (doc.GetElement(id) != null) doc.Delete(id);
+                tx.Commit();
+            }
+
+            return Generate(doc, settings);
+        }
+
         public UnifilarReport Generate(Document doc, DmProjectSettings settings)
         {
             var report = new UnifilarReport();

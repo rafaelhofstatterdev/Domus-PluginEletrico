@@ -34,6 +34,19 @@ namespace DmEletrico.UI.DocCenter
             Status.Text = r.Aviso ?? $"{r.Vistas.Count} diagrama(s) unifilar(es) gerado(s).";
         }
 
+        private void OnRegenerarUnifilar(object sender, RoutedEventArgs e)
+        {
+            var settings = DmProjectSettings.Read(_doc);
+            var r = new UnifilarService().Regenerate(_doc, settings);
+            Status.Text = r.Aviso ?? $"{r.Vistas.Count} unifilar(es) regenerado(s).";
+        }
+
+        private void OnPranchas(object sender, RoutedEventArgs e)
+        {
+            var r = SheetService.GerarPranchas(_doc);
+            Status.Text = r.Aviso ?? $"{r.Pranchas.Count} prancha(s) gerada(s).";
+        }
+
         private void OnAtualizar(object sender, RoutedEventArgs e)
         {
             DataContext = new DmDocCenterViewModel(_doc);
