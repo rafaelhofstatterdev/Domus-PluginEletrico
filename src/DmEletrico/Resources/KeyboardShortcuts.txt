@@ -1,0 +1,43 @@
+DmEletrico — Atalhos de teclado (requisito 12)
+================================================
+
+O Revit gerencia atalhos no arquivo KeyboardShortcuts.xml de cada versão, em:
+  %AppData%\Autodesk\Revit\Autodesk Revit <versao>\KeyboardShortcuts.xml
+
+Os comandos de suplemento aparecem nesse arquivo com um CommandId no formato:
+  CustomCtrl_%CustomCtrl_%<Aba>%<Painel>%<NomeBotao>
+
+Atalhos do DmEletrico
+---------------------
+Comando                  Sigla   Botão (NomeBotao)
+Construir Conduítes      CB      DmConduitBuilder
+Central de Documentação  DC      DmDocCenter
+Manual TAG               MT      DmManualTag
+Route Fit                RF      DmRouteFit
+
+Entradas sugeridas (adicionar dentro de <Shortcuts> ... </Shortcuts>):
+  <ShortcutItem CommandName="Construir Conduítes"
+                CommandId="CustomCtrl_%CustomCtrl_%DmEletrico%Modelagem%DmConduitBuilder"
+                Paths="CB" />
+  <ShortcutItem CommandName="Central de Documentação"
+                CommandId="CustomCtrl_%CustomCtrl_%DmEletrico%Documentação%DmDocCenter"
+                Paths="DC" />
+  <ShortcutItem CommandName="Manual TAG"
+                CommandId="CustomCtrl_%CustomCtrl_%DmEletrico%Anotação%DmManualTag"
+                Paths="MT" />
+  <ShortcutItem CommandName="Route Fit"
+                CommandId="CustomCtrl_%CustomCtrl_%DmEletrico%Modelagem%DmRouteFit"
+                Paths="RF" />
+
+Conflitos com comandos nativos do Revit
+---------------------------------------
+- CB: não há atalho nativo padrão.
+- DC: não há atalho nativo padrão.
+- MT: não há atalho nativo padrão.
+- RF: livre por padrão; "RF" não corresponde a comando nativo.
+  (Observação: confirmar na instalação do usuário, pois atalhos podem ter sido
+   personalizados. Em caso de conflito, o Revit avisa ao importar o XML.)
+
+A forma recomendada de distribuir é orientar o usuário a importar via
+  Arquivo > Opções > Atalhos de Teclado > Importar,
+para preservar os atalhos já existentes em vez de sobrescrever o arquivo inteiro.

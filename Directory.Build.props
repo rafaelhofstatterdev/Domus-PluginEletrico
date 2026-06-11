@@ -1,0 +1,47 @@
+<Project>
+
+  <!--
+    Configuração central de build do DmEletrico.
+
+    RevitVersion controla simultaneamente:
+      - O Target Framework (net8.0-windows para 2025+, net48 para 2022-2024)
+      - A versão dos pacotes NuGet da Revit API (Nice3point.Revit.Api.*)
+      - A pasta de Addins onde o .addin é copiado no pós-build
+
+    Para compilar para outra versão, sobrescreva na linha de comando:
+      dotnet build -p:RevitVersion=2024
+    ou altere o valor padrão abaixo.
+  -->
+
+  <PropertyGroup>
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2025</RevitVersion>
+  </PropertyGroup>
+
+  <!-- Revit 2025+ roda sobre .NET 8 -->
+  <PropertyGroup Condition="'$(RevitVersion)' &gt;= '2025'">
+    <TargetFramework>net8.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <!-- Revit 2022-2024 roda sobre .NET Framework 4.8 -->
+  <PropertyGroup Condition="'$(RevitVersion)' &lt; '2025'">
+    <TargetFramework>net48</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Configurations>Debug;Release</Configurations>
+
+    <!-- Metadados -->
+    <Company>Domus</Company>
+    <Product>DmEletrico</Product>
+    <Version>0.1.0</Version>
+    <Authors>Domus</Authors>
+  </PropertyGroup>
+
+</Project>

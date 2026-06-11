@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DmEletrico</RootNamespace>
+    <AssemblyName>DmEletrico</AssemblyName>
+    <!-- O assembly da Revit API já é carregado pelo Revit; nunca copiar para a saída -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!--
+    Pacotes NuGet da Revit API (Nice3point).
+    A versão segue a RevitVersion definida em Directory.Build.props.
+    Esses pacotes são reference-only: ExcludeAssets="runtime" garante que
+    RevitAPI.dll / RevitAPIUI.dll NÃO sejam copiadas para o bin (o Revit já as fornece).
+  -->
+  <ItemGroup>
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).*" ExcludeAssets="runtime" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitVersion).*" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- Copia o manifesto .addin para a pasta de Addins do Revit no pós-build (Debug) -->
+  <Target Name="DeployAddin" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <PropertyGroup>
+      <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)</RevitAddinsDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(RevitAddinsDir)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Resources\DmEletrico.addin"
+          DestinationFolder="$(RevitAddinsDir)"
+          SkipUnchangedFiles="false" />
+    <Message Importance="high" Text="DmEletrico: .addin copiado para $(RevitAddinsDir)" />
+  </Target>
+
+</Project>

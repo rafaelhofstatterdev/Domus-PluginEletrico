@@ -1,0 +1,36 @@
+<Window x:Class="DmEletrico.UI.Setup.DmSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DmEletrico — Setup do Projeto"
+        Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,8,0,2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="16">
+
+        <TextBlock Text="Configuração do DmEletrico" FontSize="16" Margin="0,0,0,4" />
+        <TextBlock Text="Os parâmetros compartilhados serão injetados no modelo ao confirmar."
+                   FontWeight="Normal" TextWrapping="Wrap" Foreground="#555" />
+
+        <TextBlock Text="Temperatura ambiente (°C) — para o FCT" />
+        <TextBox Text="{Binding TemperaturaAmbiente, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="Tensão nominal do sistema (V)" />
+        <ComboBox ItemsSource="{Binding TensoesDisponiveis}"
+                  SelectedItem="{Binding TensaoNominal}" />
+
+        <TextBlock Text="Método de instalação dos condutores" />
+        <ComboBox ItemsSource="{Binding MetodosDisponiveis}"
+                  SelectedItem="{Binding Metodo}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Cancelar" Width="90" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Confirmar" Width="90" IsDefault="True" Click="OnConfirmar" />
+        </StackPanel>
+    </StackPanel>
+</Window>
