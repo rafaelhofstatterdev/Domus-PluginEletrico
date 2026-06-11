@@ -15,9 +15,11 @@ namespace DmEletrico.Commands
             var result = DocumentationService.GerarQuantitativos(doc);
             uiDoc.ActiveView = result.Conduites;
 
-            var msg = "Quantitativos gerados: Conduítes e Dispositivos.";
+            var materiais = MaterialsService.Compute(doc);
+
+            var msg = "Tabelas geradas: Conduítes e Dispositivos.\n\n" + materiais;
             if (result.CamposNaoEncontrados.Count > 0)
-                msg += "\n\nColunas não disponíveis (rode o Setup):\n"
+                msg += "\nColunas não disponíveis (rode o Setup):\n"
                        + string.Join(", ", result.CamposNaoEncontrados);
 
             TaskDialog.Show("DmEletrico — Quantitativos", msg);
