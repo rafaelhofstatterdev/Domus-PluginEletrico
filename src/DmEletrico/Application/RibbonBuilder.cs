@@ -58,6 +58,13 @@ namespace DmEletrico.Application
                 command: typeof(DmRouteFitCommand),
                 tooltip: "Recalcula trechos com geometria inválida após movimentação de dispositivos. (Atalho: RF)",
                 availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmConduitDetail",
+                text: "Detalhar\nTrecho",
+                command: typeof(DmConduitDetailCommand),
+                tooltip: "Mostra os parâmetros calculados (corrente, FCT, FCA, seção, queda) do conduíte selecionado.",
+                availability: AvailabilityNames.ElectricalElements);
         }
 
         private static void BuildCircuitsPanel(UIControlledApplication app, string asm)

@@ -16,9 +16,9 @@ registrados como comandos com stubs prontos para implementação.
 | Módulo | Comando | Atalho | Status |
 |---|---|---|---|
 | 2 — Setup | `DmSetup` | — | ✅ Funcional (WPF + injeção de parâmetros) |
-| 3 — Conduit Builder | `DmConduitBuilder` | CB | 🟡 Stub |
-| 4 — Route Fit | `DmRouteFit` | RF | 🟡 Stub |
-| 5 — Motor de cálculo | (interno) | — | ✅ `ElectricalCalculator` + tabelas |
+| 3 — Conduit Builder | `DmConduitBuilder` | CB | ✅ Roteamento 3D + fittings + dimensionamento |
+| 4 — Route Fit | `DmRouteFit` | RF | ✅ Limpeza de geometria inválida |
+| 5 — Motor de cálculo | (interno) / `DmConduitDetail` | — | ✅ `ElectricalCalculator` + janela de detalhamento |
 | 6 — Desconectados | `DmCheckDisconnected` | — | ✅ Varredura funcional |
 | 7 — Auto/Manual TAG | `DmAutoTag` / `DmManualTag` | MT | 🟡 Stub |
 | 8 — Central de Doc. | `DmDocCenter` | DC | 🟡 Stub |
@@ -46,15 +46,58 @@ dotnet build -p:RevitVersion=2024   # net48, pacotes 2024.*
 > Revit 2022–2024 usam **.NET Framework 4.8** (`net48`); 2025+ usa **.NET 8**.
 > A `Directory.Build.props` seleciona o TFM automaticamente pela `RevitVersion`.
 
-## Instalação no Revit
+## Instalação no Revit (passo a passo)
 
-No build **Debug**, o `.csproj` copia `Resources/DmEletrico.addin` para
-`%AppData%\Autodesk\Revit\Addins\<versao>\`. Edite o caminho do `<Assembly>`
-nesse `.addin` para o `DmEletrico.dll` gerado, ou use um caminho absoluto fixo.
+### Pré-requisitos
+- **Autodesk Revit 2025** instalado.
+- **.NET SDK 8.0+** (ou Visual Studio 2022 17.8+) para compilar.
 
-Ao abrir o Revit, surge a aba **DmEletrico**. O botão **Setup** está sempre
-ativo; os demais ficam cinza até o modelo conter elementos elétricos
-(`OST_ElectricalFixtures`, `OST_LightingFixtures`, `OST_ElectricalEquipment`).
+### Passos
+
+1. **Clone o repositório**
+   ```powershell
+   git clone https://github.com/rafaelhofstatterdev/Domus-PluginEletrico.git
+   cd Domus-PluginEletrico
+   ```
+
+2. **Compile a solução** (com o Revit fechado)
+   ```powershell
+   dotnet build DmEletrico.sln -c Debug
+   ```
+   No build **Debug**, o `.csproj` já copia automaticamente
+   `Resources/DmEletrico.addin` para
+   `%AppData%\Autodesk\Revit\Addins\2025\`.
+
+3. **Confira o caminho do assembly no `.addin`**
+   Abra `%AppData%\Autodesk\Revit\Addins\2025\DmEletrico.addin` e garanta que a
+   tag `<Assembly>` aponta para o `DmEletrico.dll` gerado. O padrão é relativo:
+   ```xml
+   <Assembly>..\..\..\src\DmEletrico\bin\x64\Debug\DmEletrico.dll</Assembly>
+   ```
+   Se o Revit não carregar o suplemento, troque por um **caminho absoluto**, ex.:
+   ```xml
+   <Assembly>C:\Users\SEU_USUARIO\Desktop\Codigos\Domus-PluginEletrico\src\DmEletrico\bin\x64\Debug\DmEletrico.dll</Assembly>
+   ```
+
+4. **Abra o Revit 2025.** Na primeira carga o Revit pode exibir um aviso de
+   segurança de suplemento — escolha **Always Load / Sempre carregar**.
+
+5. **Valide:** abra (ou crie) um projeto. Deve surgir a aba **DmEletrico** na
+   Ribbon. O botão **Setup** fica sempre ativo; os demais permanecem cinza até o
+   modelo conter elementos elétricos (`OST_ElectricalFixtures`,
+   `OST_LightingFixtures`, `OST_ElectricalEquipment`).
+
+6. **Rode o Setup** uma vez para injetar os parâmetros compartilhados e liberar
+   os comandos de cálculo/roteamento.
+
+### Atualizar após mudanças no código
+Feche o Revit, rode `dotnet build` novamente e reabra o Revit. (O Revit carrega
+o `.dll` no início da sessão; não há recarga a quente.)
+
+### Atalhos de teclado (opcional)
+Importe os atalhos **CB / DC / MT / RF** conforme
+`src/DmEletrico/Resources/KeyboardShortcuts.txt`, via
+*Arquivo > Opções > Atalhos de Teclado > Importar*.
 
 ## Estrutura
 
@@ -66,8 +109,10 @@ src/DmEletrico/
   Availability/                  # IExternalCommandAvailability (habilitação dinâmica)
   Commands/                      # Comandos Dm* (IExternalCommand)
   Core/                          # Parâmetros, settings, injeção, cálculo
-    Calculation/                 # Motor NBR 5410 + tabelas
+    Calculation/                 # Motor NBR 5410 + tabelas + dimensionamento de eletroduto
+    Routing/                     # Roteamento ortogonal, Conduit Builder, Route Fit
   UI/Setup/                      # Diálogo WPF de Setup
+  UI/Detail/                     # Janela WPF de detalhamento do trecho
   Resources/                     # .addin, atalhos de teclado
 ```
 

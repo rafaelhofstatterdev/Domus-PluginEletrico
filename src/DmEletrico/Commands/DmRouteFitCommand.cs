@@ -1,19 +1,30 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using DmEletrico.Core.Routing;
 
 namespace DmEletrico.Commands
 {
     /// <summary>
-    /// Requisito 4 — Route Fit (atalho RF). Detecta conduítes com geometria
-    /// inválida após movimentação de dispositivos e recalcula os trechos afetados,
-    /// restaurando a continuidade da rede (conduítes, eletrocalhas, perfilados).
+    /// Requisito 4 — Route Fit (atalho RF). Detecta conduítes/eletrocalhas com
+    /// geometria inválida (comprimento zero, curvas órfãs) após movimentação de
+    /// dispositivos e restaura a continuidade da rede física.
     /// </summary>
     public sealed class DmRouteFitCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
-            return NotImplementedYet("Ajuste de Rotas",
-                "Detecta trechos com geometria inválida (comprimento zero, ângulos não suportados, conexões rompidas) e recalcula a rede física.");
+            var service = new RouteFitService();
+            RouteFitReport report;
+
+            using (var tx = new Transaction(doc, "DmEletrico — Ajuste de Rotas"))
+            {
+                tx.Start();
+                report = service.Fit(doc);
+                tx.Commit();
+            }
+
+            TaskDialog.Show("DmEletrico — Ajuste de Rotas", report.ToString());
+            return Result.Succeeded;
         }
     }
 }
