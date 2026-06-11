@@ -21,10 +21,17 @@ namespace DmEletrico.Core.Circuits
         {
             if (deviceIds.Count == 0) return null;
 
+            // Só dispositivos com conector elétrico de força podem formar o circuito.
+            var validos = deviceIds.Where(id => TemConectorEletrico(doc.GetElement(id))).ToList();
+            if (validos.Count == 0)
+                throw new System.InvalidOperationException(
+                    "Os dispositivos selecionados não possuem conector elétrico de força. " +
+                    "Use famílias elétricas com conector de eletricidade (Power) — luminárias, tomadas e equipamentos.");
+
             using var tx = new Transaction(doc, "DmEletrico — Criar Circuito");
             tx.Start();
 
-            var system = ElectricalSystem.Create(doc, deviceIds.ToList(), ElectricalSystemType.PowerCircuit);
+            var system = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
             system.SelectPanel(panel);
             doc.Regenerate();
 
@@ -32,6 +39,15 @@ namespace DmEletrico.Core.Circuits
             EscreverQuadro(system, panel.Name);
             tx.Commit();
             return system;
+        }
+
+        private static bool TemConectorEletrico(Element? e)
+        {
+            var manager = (e as FamilyInstance)?.MEPModel?.ConnectorManager;
+            if (manager == null) return false;
+            foreach (Connector c in manager.Connectors)
+                if (c.Domain == Domain.DomainElectrical) return true;
+            return false;
         }
 
         /// <summary>Reatribui um circuito a outro QDC.</summary>

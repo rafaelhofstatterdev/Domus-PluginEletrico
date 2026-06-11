@@ -37,6 +37,34 @@ namespace DmEletrico.Core.Routing
         /// <summary>Roteamento direto: segmento único entre origem e destino.</summary>
         public static IList<XYZ> RouteDireto(XYZ from, XYZ to) => Dedupe(new List<XYZ> { from, to });
 
+        /// <summary>
+        /// Roteamento "pela parede/piso": percurso ortogonal mantido na altura dos
+        /// dispositivos — horizontal no plano e vertical para vencer o desnível,
+        /// sem subir até o teto.
+        /// </summary>
+        public static IList<XYZ> RouteParede(XYZ from, XYZ to)
+        {
+            var pontos = new List<XYZ>
+            {
+                from,
+                new XYZ(to.X, to.Y, from.Z), // corre no plano na altura de origem
+                to                           // sobe/desce até o destino
+            };
+            return Dedupe(pontos);
+        }
+
+        /// <summary>Roteamento "pelo teto": sobe à espinha, corre e desce.</summary>
+        public static IList<XYZ> RouteTeto(XYZ from, XYZ to, double spineElevation)
+            => Route(from, to, spineElevation);
+
+        /// <summary>Comprimento total (em pés) de um caminho.</summary>
+        public static double Comprimento(IList<XYZ> pts)
+        {
+            double total = 0;
+            for (int i = 0; i < pts.Count - 1; i++) total += pts[i].DistanceTo(pts[i + 1]);
+            return total;
+        }
+
         private static IList<XYZ> Dedupe(IList<XYZ> pts)
         {
             var result = new List<XYZ>();

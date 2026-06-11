@@ -143,9 +143,7 @@ namespace DmEletrico.Core.Routing
 
             for (int i = 0; i < pontos.Count - 1; i++)
             {
-                var caminho = options.AnguloPlanta == AnguloPlanta.Livre
-                    ? OrthogonalRouter.RouteDireto(pontos[i].pt!, pontos[i + 1].pt!)
-                    : OrthogonalRouter.Route(pontos[i].pt!, pontos[i + 1].pt!, spineZ);
+                var caminho = EscolherCaminho(pontos[i].pt!, pontos[i + 1].pt!, spineZ, options, settings);
 
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
@@ -210,10 +208,7 @@ namespace DmEletrico.Core.Routing
                 var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(ambiente), UnitTypeId.Meters);
                 var spineZ = levelElev + offsetFeet;
 
-                var direto = options.AnguloPlanta == AnguloPlanta.Livre || settings.Modo == ModoRoteamento.Direto;
-                var caminho = direto
-                    ? OrthogonalRouter.RouteDireto(devPt, panelPt)
-                    : OrthogonalRouter.Route(devPt, panelPt, spineZ);
+                var caminho = EscolherCaminho(devPt, panelPt, spineZ, options, settings);
 
                 var trechoLenM = UnitUtils.ConvertFromInternalUnits(ComprimentoTotal(caminho), UnitTypeId.Meters);
 
@@ -231,7 +226,7 @@ namespace DmEletrico.Core.Routing
                     : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
-                AplicarParametros(doc, conduits, r, potenciaVa, diametroMm, nCondutores,
+                AplicarParametros(doc, conduits, r, potenciaVa, diametroMm, nCondutores, poles,
                     system.Id.ToString(), dispositivo.Id.ToString(), circuitoNumero);
 
                 foreach (var c in conduits)
@@ -285,10 +280,31 @@ namespace DmEletrico.Core.Routing
                 {
                     SetDouble(m.Conduit, DmParameters.Fca, fca);
                     SetDouble(m.Conduit, DmParameters.SecaoAdotada, m.Secao);
+                    SetDouble(m.Conduit, DmParameters.BitolaFase, m.Secao);
+                    SetDouble(m.Conduit, DmParameters.BitolaTerra, m.Secao);
                     SetDouble(m.Conduit, DmParameters.DiametroNominal, diamFeet);
                     SetInt(m.Conduit, DmParameters.NumCondutores, totalCondutores);
                     SetString(m.Conduit, DmParameters.CircuitosNoTrecho, numeros);
                 }
+            }
+        }
+
+        /// <summary>Escolhe o caminho (parede/teto/ambos) conforme as opções.</summary>
+        private static IList<XYZ> EscolherCaminho(XYZ a, XYZ b, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
+        {
+            if (options.AnguloPlanta == AnguloPlanta.Livre || settings.Modo == ModoRoteamento.Direto)
+                return OrthogonalRouter.RouteDireto(a, b);
+
+            switch (options.Caminho)
+            {
+                case CaminhoConduite.Parede:
+                    return OrthogonalRouter.RouteParede(a, b);
+                case CaminhoConduite.Teto:
+                    return OrthogonalRouter.RouteTeto(a, b, spineZ);
+                default: // Ambos → mais curto
+                    var parede = OrthogonalRouter.RouteParede(a, b);
+                    var teto = OrthogonalRouter.RouteTeto(a, b, spineZ);
+                    return OrthogonalRouter.Comprimento(parede) <= OrthogonalRouter.Comprimento(teto) ? parede : teto;
             }
         }
 
@@ -343,7 +359,7 @@ namespace DmEletrico.Core.Routing
 
         private void AplicarParametros(
             Document doc, List<Conduit> conduits, TrechoResultado r, double potenciaVa,
-            double diametroMm, int nCondutores, string circuitoId, string dispositivoId, string circuitoNumero)
+            double diametroMm, int nCondutores, int nFases, string circuitoId, string dispositivoId, string circuitoNumero)
         {
             var diamFeet = UnitUtils.ConvertToInternalUnits(diametroMm, UnitTypeId.Millimeters);
 
@@ -360,6 +376,14 @@ namespace DmEletrico.Core.Routing
                 SetString(c, DmParameters.CircuitoOrigemId, circuitoId);
                 SetString(c, DmParameters.DispositivoId, dispositivoId);
                 SetString(c, DmParameters.CircuitosNoTrecho, circuitoNumero);
+
+                // Fiação (consumido pela família de anotação em_smb_fiação).
+                SetInt(c, DmParameters.NumFases, nFases);
+                SetInt(c, DmParameters.NumNeutros, 1);
+                SetInt(c, DmParameters.NumTerras, 1);
+                SetInt(c, DmParameters.NumRetornos, 0);
+                SetDouble(c, DmParameters.BitolaFase, r.SecaoAdotadaMm2);
+                SetDouble(c, DmParameters.BitolaTerra, r.SecaoAdotadaMm2);
             }
         }
 

@@ -43,6 +43,9 @@
                     </StackPanel>
                 </Grid>
 
+                <TextBlock Text="Caminho do conduíte (parede / teto / ambos = mais curto)" />
+                <ComboBox ItemsSource="{Binding Caminhos}" SelectedItem="{Binding Caminho}" />
+
                 <TextBlock Text="Orientação do conduíte (quando possível)" />
                 <ComboBox ItemsSource="{Binding Orientacoes}" SelectedItem="{Binding Orientacao}" />
             </StackPanel>

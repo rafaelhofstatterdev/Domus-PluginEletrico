@@ -25,6 +25,12 @@ namespace DmEletrico.Core
         public const string DispositivoId = "Dm_DispositivoId";       // Id do dispositivo terminal do ramal
         public const string CircuitosNoTrecho = "Dm_CircuitosNoTrecho"; // números de circuitos que passam (lista)
         public const string NumCondutores = "Dm_NumCondutores";       // total de condutores no trecho
+        public const string NumFases = "Dm_NumFases";                 // fases no trecho
+        public const string NumNeutros = "Dm_NumNeutros";             // neutros no trecho
+        public const string NumTerras = "Dm_NumTerras";               // terras no trecho
+        public const string NumRetornos = "Dm_NumRetornos";           // retornos no trecho
+        public const string BitolaFase = "Dm_BitolaFase";             // mm² (fase)
+        public const string BitolaTerra = "Dm_BitolaTerra";           // mm² (terra)
 
         // --- Parâmetros de circuito / dispositivo ---
         public const string NumeroCircuito = "Dm_NumeroCircuito";
@@ -99,6 +105,12 @@ namespace DmEletrico.Core
                 new Definition(DispositivoId,     SpecTypeId.String.Text,    isInstance: true, conduit),
                 new Definition(CircuitosNoTrecho, SpecTypeId.String.Text,    isInstance: true, conduit),
                 new Definition(NumCondutores,     SpecTypeId.Int.Integer,    isInstance: true, conduit),
+                new Definition(NumFases,          SpecTypeId.Int.Integer,    isInstance: true, conduit),
+                new Definition(NumNeutros,        SpecTypeId.Int.Integer,    isInstance: true, conduit),
+                new Definition(NumTerras,         SpecTypeId.Int.Integer,    isInstance: true, conduit),
+                new Definition(NumRetornos,       SpecTypeId.Int.Integer,    isInstance: true, conduit),
+                new Definition(BitolaFase,        SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(BitolaTerra,       SpecTypeId.Number,         isInstance: true, conduit),
 
                 // Circuito / dispositivo
                 new Definition(NumeroCircuito,    SpecTypeId.String.Text,    isInstance: true, electrical),

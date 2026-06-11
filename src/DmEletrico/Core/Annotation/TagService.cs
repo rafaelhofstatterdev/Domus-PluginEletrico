@@ -133,25 +133,62 @@ namespace DmEletrico.Core.Annotation
             }
         }
 
+        /// <summary>
+        /// Preenche os parâmetros da família de fiação (em_smb_fiação) com os dados
+        /// do circuito daquele conduíte: nº de fases/neutros/terras/retornos, bitolas
+        /// e número do circuito. Mapeia os nomes nativos da família a partir dos Dm_.
+        /// </summary>
         private static void CopiarParametrosFiacao(Element conduit, Element inst)
         {
-            Copiar(conduit, inst, DmParameters.CircuitosNoTrecho, DmParameters.NumeroCircuito);
-            Copiar(conduit, inst, DmParameters.SecaoAdotada, DmParameters.SecaoAdotada);
-            Copiar(conduit, inst, DmParameters.NumCondutores, DmParameters.NumCondutores);
+            // Número do circuito (texto).
+            SetTexto(inst, "N_Circuito", conduit.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString() ?? "");
+
+            // Contagens (inteiros).
+            SetInteiro(inst, "N_Fase", LerInt(conduit, DmParameters.NumFases, 1));
+            SetInteiro(inst, "N_Neutro", LerInt(conduit, DmParameters.NumNeutros, 1));
+            SetInteiro(inst, "N_Terra", LerInt(conduit, DmParameters.NumTerras, 1));
+            SetInteiro(inst, "N_Retorno", LerInt(conduit, DmParameters.NumRetornos, 0));
+
+            // Bitolas (mm²).
+            var bitFase = LerDouble(conduit, DmParameters.BitolaFase, LerDouble(conduit, DmParameters.SecaoAdotada, 0));
+            var bitTerra = LerDouble(conduit, DmParameters.BitolaTerra, bitFase);
+            SetNumero(inst, "Bit_Fase", bitFase);
+            SetNumero(inst, "Bit_Terra", bitTerra);
         }
 
-        private static void Copiar(Element origem, Element destino, string nomeOrigem, string nomeDestino)
+        private static int LerInt(Element e, string nome, int padrao)
         {
-            var po = origem.LookupParameter(nomeOrigem);
-            var pd = destino.LookupParameter(nomeDestino);
-            if (po == null || pd == null || pd.IsReadOnly) return;
+            var p = e.LookupParameter(nome);
+            return p?.StorageType == StorageType.Integer ? p.AsInteger() : padrao;
+        }
 
-            switch (pd.StorageType)
-            {
-                case StorageType.String: pd.Set(po.StorageType == StorageType.String ? po.AsString() ?? "" : po.AsValueString() ?? ""); break;
-                case StorageType.Double: if (po.StorageType == StorageType.Double) pd.Set(po.AsDouble()); break;
-                case StorageType.Integer: if (po.StorageType == StorageType.Integer) pd.Set(po.AsInteger()); break;
-            }
+        private static double LerDouble(Element e, string nome, double padrao)
+        {
+            var p = e.LookupParameter(nome);
+            return p?.StorageType == StorageType.Double ? p.AsDouble() : padrao;
+        }
+
+        private static void SetTexto(Element e, string nome, string valor)
+        {
+            var p = e.LookupParameter(nome);
+            if (p != null && !p.IsReadOnly && p.StorageType == StorageType.String) p.Set(valor);
+        }
+
+        private static void SetInteiro(Element e, string nome, int valor)
+        {
+            var p = e.LookupParameter(nome);
+            if (p == null || p.IsReadOnly) return;
+            if (p.StorageType == StorageType.Integer) p.Set(valor);
+            else if (p.StorageType == StorageType.Double) p.Set(valor);
+            else if (p.StorageType == StorageType.String) p.Set(valor.ToString());
+        }
+
+        private static void SetNumero(Element e, string nome, double valor)
+        {
+            var p = e.LookupParameter(nome);
+            if (p == null || p.IsReadOnly) return;
+            if (p.StorageType == StorageType.Double) p.Set(valor);
+            else if (p.StorageType == StorageType.String) p.Set(valor.ToString(System.Globalization.CultureInfo.CurrentCulture));
         }
 
         // --- Símbolos ---

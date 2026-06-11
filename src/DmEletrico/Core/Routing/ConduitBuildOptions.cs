@@ -14,6 +14,14 @@ namespace DmEletrico.Core.Routing
     public enum AnguloParede { Livre, A90 }
     public enum OrientacaoConduite { Default, Horizontal, Vertical }
 
+    /// <summary>Por onde o conduíte percorre entre os pontos.</summary>
+    public enum CaminhoConduite
+    {
+        Parede, // mantém na altura dos dispositivos (hugando parede/piso)
+        Teto,   // sobe à espinha no teto/laje, corre e desce
+        Ambos   // escolhe automaticamente o caminho mais curto
+    }
+
     /// <summary>
     /// Opções do Conduit Builder definidas na janela de configuração (requisito 3),
     /// no espírito do diálogo "Construir Conduítes".
@@ -33,6 +41,7 @@ namespace DmEletrico.Core.Routing
         public AnguloPlanta AnguloPlanta { get; set; } = AnguloPlanta.A90;
         public AnguloParede AnguloParede { get; set; } = AnguloParede.A90;
         public OrientacaoConduite Orientacao { get; set; } = OrientacaoConduite.Default;
+        public CaminhoConduite Caminho { get; set; } = CaminhoConduite.Ambos;
 
         /// <summary>Dispositivos a conectar quando Modo = DispositivosSelecionados.</summary>
         public IList<ElementId> Dispositivos { get; set; } = new List<ElementId>();

@@ -59,6 +59,12 @@ namespace DmEletrico.UI.Routing
         };
         public OrientacaoConduite Orientacao { get; set; } = OrientacaoConduite.Default;
 
+        public IReadOnlyList<CaminhoConduite> Caminhos { get; } = new[]
+        {
+            CaminhoConduite.Parede, CaminhoConduite.Teto, CaminhoConduite.Ambos
+        };
+        public CaminhoConduite Caminho { get; set; } = CaminhoConduite.Ambos;
+
         public DmConduitBuilderViewModel WithDefaults()
         {
             Diametro = Diametros[0];
@@ -73,7 +79,8 @@ namespace DmEletrico.UI.Routing
             DiametroForcadoMm = Diametro?.Valor ?? 0,
             AnguloPlanta = AnguloPlanta,
             AnguloParede = AnguloParede,
-            Orientacao = Orientacao
+            Orientacao = Orientacao,
+            Caminho = Caminho
         };
     }
 }
