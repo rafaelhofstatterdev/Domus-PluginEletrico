@@ -7,11 +7,15 @@ carregamento do `.addin`.
 
 ## Estado atual
 
-**Esqueleto completo e compilável.** A infraestrutura (Ribbon dinâmica,
-habilitação por `IExternalCommandAvailability`, injeção de parâmetros
-compartilhados, motor de cálculo NBR 5410 e diálogo de Setup em WPF) está
-implementada. Os módulos de roteamento, anotação e documentação estão
-registrados como comandos com stubs prontos para implementação.
+**Todos os 13 módulos implementados e compilando** (Revit 2025 / .NET 8). A
+infraestrutura (Ribbon dinâmica, habilitação por `IExternalCommandAvailability`,
+injeção de parâmetros compartilhados, motor de cálculo NBR 5410 e diálogos WPF)
+e os módulos de roteamento, anotação, gestão de circuitos, documentação,
+quantitativos e coordenação entre modelos estão funcionais.
+
+> O código compila sem erros, mas ainda **não foi validado em execução dentro do
+> Revit**. As tabelas da NBR 5410 são uma base representativa (ver aviso ao
+> final). Recomenda-se testar em um modelo simples antes do uso em projeto real.
 
 | Módulo | Comando | Atalho | Status |
 |---|---|---|---|
@@ -24,7 +28,7 @@ registrados como comandos com stubs prontos para implementação.
 | 7 — Auto/Manual TAG | `DmAutoTag` / `DmManualTag` | MT | ✅ IndependentTag em conduítes |
 | 8 — Central de Doc. | `DmDocCenter` | DC | ✅ Painel WPF (QDCs + geração) |
 | 9 — Quadros de Cargas | `DmLoadSchedule` | — | ✅ ViewSchedule por circuito |
-| 10 — Unifilar | `DmUnifilar` | — | 🟡 Stub |
+| 10 — Unifilar | `DmUnifilar` | — | ✅ ViewDrafting por QDC (barramento + ramais) |
 | 13 — Quantitativos | `DmMaterials` | — | ✅ ViewSchedule conduítes + dispositivos |
 
 ## Requisitos de build

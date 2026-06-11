@@ -1,5 +1,6 @@
 using System.Windows;
 using Autodesk.Revit.DB;
+using DmEletrico.Core;
 using DmEletrico.Core.Documentation;
 
 namespace DmEletrico.UI.DocCenter
@@ -28,7 +29,9 @@ namespace DmEletrico.UI.DocCenter
 
         private void OnUnifilar(object sender, RoutedEventArgs e)
         {
-            Status.Text = "Diagrama unifilar (módulo 10) em desenvolvimento.";
+            var settings = DmProjectSettings.Read(_doc);
+            var r = new UnifilarService().Generate(_doc, settings);
+            Status.Text = r.Aviso ?? $"{r.Vistas.Count} diagrama(s) unifilar(es) gerado(s).";
         }
 
         private void OnAtualizar(object sender, RoutedEventArgs e)

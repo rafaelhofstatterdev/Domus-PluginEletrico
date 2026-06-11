@@ -71,6 +71,20 @@ namespace DmEletrico.Core.Calculation
         public static double CapacidadeCorrente(double secaoMm2)
             => CapacidadeB1.TryGetValue(secaoMm2, out var i) ? i : 0;
 
+        /// <summary>Correntes nominais comerciais de disjuntores (A) — série usual.</summary>
+        public static readonly double[] DisjuntoresComerciais =
+        {
+            10, 16, 20, 25, 32, 40, 50, 63, 70, 80, 100, 125, 160, 200, 250, 300, 400
+        };
+
+        /// <summary>Menor disjuntor comercial cuja corrente nominal atende a corrente de projeto.</summary>
+        public static double DisjuntorComercial(double correnteProjetoA)
+        {
+            foreach (var d in DisjuntoresComerciais)
+                if (d >= correnteProjetoA) return d;
+            return DisjuntoresComerciais.Last();
+        }
+
         /// <summary>Menor seção comercial cuja capacidade corrigida atende a corrente exigida.</summary>
         public static double SecaoPorCapacidade(double correnteCorrigidaA)
         {
