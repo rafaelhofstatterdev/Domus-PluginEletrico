@@ -40,6 +40,12 @@ namespace DmEletrico.Application
                 text: "Setup",
                 command: typeof(DmSetupCommand),
                 tooltip: "Injeta os parâmetros compartilhados do DmEletrico, configura templates e variáveis globais do projeto.");
+
+            AddButton(panel, asm,
+                name: "DmShortcuts",
+                text: "Atalhos",
+                command: typeof(DmShortcutsCommand),
+                tooltip: "Registra os atalhos CB/DC/MT/RF no KeyboardShortcuts.xml do Revit (reinicie o Revit depois).");
         }
 
         private static void BuildModelingPanel(UIControlledApplication app, string asm)

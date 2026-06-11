@@ -2,9 +2,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Electrical;
+using DmEletrico.Core;
 
 namespace DmEletrico.Core.Coordination
 {
+    public sealed class LinkCircuitInfo
+    {
+        public string LinkName { get; set; } = "";
+        public string Quadro { get; set; } = "(sem QDC)";
+        public string Numero { get; set; } = "?";
+        public double CargaVa { get; set; }
+    }
+
     public sealed class LinkElementInfo
     {
         public string LinkName { get; set; } = "";
@@ -17,14 +27,17 @@ namespace DmEletrico.Core.Coordination
     public sealed class LinkCoordinationReport
     {
         public List<LinkElementInfo> Elementos { get; } = new();
+        public List<LinkCircuitInfo> Circuitos { get; } = new();
         public int LinksCarregados { get; set; }
         public int LinksNaoCarregados { get; set; }
+
+        public double CargaTotalVa => Circuitos.Sum(c => c.CargaVa);
 
         public override string ToString()
         {
             var sb = new StringBuilder();
             sb.AppendLine($"Links carregados: {LinksCarregados} | não carregados: {LinksNaoCarregados}");
-            sb.AppendLine($"Elementos elétricos encontrados nos links: {Elementos.Count}\n");
+            sb.AppendLine($"Elementos elétricos nos links: {Elementos.Count}");
 
             foreach (var porLink in Elementos.GroupBy(e => e.LinkName))
             {
@@ -32,6 +45,14 @@ namespace DmEletrico.Core.Coordination
                 foreach (var porCat in porLink.GroupBy(e => e.Categoria))
                     sb.AppendLine($"    {porCat.Key}: {porCat.Count()}");
             }
+
+            sb.AppendLine($"\nCircuitos consolidados dos links: {Circuitos.Count}");
+            foreach (var porQuadro in Circuitos.GroupBy(c => c.Quadro))
+            {
+                var total = porQuadro.Sum(c => c.CargaVa);
+                sb.AppendLine($"• {porQuadro.Key}: {porQuadro.Count()} circuito(s), {total:F0} VA");
+            }
+            sb.AppendLine($"\nCarga total importada: {CargaTotalVa:F0} VA");
             return sb.ToString();
         }
     }
@@ -91,6 +112,24 @@ namespace DmEletrico.Core.Coordination
                         Nome = e.Name,
                         IdNoLink = e.Id,
                         PontoGlobal = local != null ? transform.OfPoint(local) : null
+                    });
+                }
+
+                // Importação consolidada de circuitos/cargas do link.
+                var sistemas = new FilteredElementCollector(linkedDoc)
+                    .OfClass(typeof(ElectricalSystem))
+                    .Cast<ElectricalSystem>();
+
+                foreach (var s in sistemas)
+                {
+                    var carga = s.Elements.Cast<Element>()
+                        .Sum(el => el.LookupParameter(DmParameters.Potencia)?.AsDouble() ?? 0);
+                    report.Circuitos.Add(new LinkCircuitInfo
+                    {
+                        LinkName = linkName,
+                        Quadro = s.BaseEquipment?.Name ?? "(sem QDC)",
+                        Numero = string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber,
+                        CargaVa = carga
                     });
                 }
             }
