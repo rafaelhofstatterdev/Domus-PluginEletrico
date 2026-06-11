@@ -1,19 +1,22 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using DmEletrico.UI.DocCenter;
 
 namespace DmEletrico.Commands
 {
     /// <summary>
-    /// Requisito 8 — Central de Documentação (atalho DC). Painel WPF central que
-    /// lista QDCs e circuitos, gerencia vistas/tabelas/pranchas e aciona a geração
-    /// de quadros de cargas e diagramas unifilares.
+    /// Requisito 8 — Central de Documentação (atalho DC). Painel WPF que lista os
+    /// QDCs e seus circuitos e dispara a geração de quadros de cargas,
+    /// quantitativos e diagramas unifilares.
     /// </summary>
     public sealed class DmDocCenterCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
-            return NotImplementedYet("Central de Documentação",
-                "Painel central de QDCs, circuitos, vistas, quadros de cargas e diagramas unifilares.");
+            var vm = new DmDocCenterViewModel(doc);
+            var window = new DmDocCenterWindow(doc) { DataContext = vm };
+            window.ShowDialog();
+            return Result.Succeeded;
         }
     }
 }

@@ -20,8 +20,8 @@ registrados como comandos com stubs prontos para implementação.
 | 4 — Route Fit | `DmRouteFit` | RF | ✅ Limpeza de geometria inválida |
 | 5 — Motor de cálculo | (interno) / `DmConduitDetail` | — | ✅ `ElectricalCalculator` + janela de detalhamento |
 | 6 — Desconectados | `DmCheckDisconnected` | — | ✅ Varredura funcional |
-| 7 — Auto/Manual TAG | `DmAutoTag` / `DmManualTag` | MT | 🟡 Stub |
-| 8 — Central de Doc. | `DmDocCenter` | DC | 🟡 Stub |
+| 7 — Auto/Manual TAG | `DmAutoTag` / `DmManualTag` | MT | ✅ IndependentTag em conduítes |
+| 8 — Central de Doc. | `DmDocCenter` | DC | ✅ Painel WPF (QDCs + geração) |
 | 9 — Quadros de Cargas | `DmLoadSchedule` | — | ✅ ViewSchedule por circuito |
 | 10 — Unifilar | `DmUnifilar` | — | 🟡 Stub |
 | 13 — Quantitativos | `DmMaterials` | — | ✅ ViewSchedule conduítes + dispositivos |
@@ -111,9 +111,11 @@ src/DmEletrico/
   Core/                          # Parâmetros, settings, injeção, cálculo
     Calculation/                 # Motor NBR 5410 + tabelas + dimensionamento de eletroduto
     Routing/                     # Roteamento ortogonal, Conduit Builder, Route Fit
-    Documentation/               # ScheduleBuilder (quadros de cargas, quantitativos)
+    Documentation/               # ScheduleBuilder + DocumentationService
+    Annotation/                  # TagService (Auto/Manual TAG)
   UI/Setup/                      # Diálogo WPF de Setup
   UI/Detail/                     # Janela WPF de detalhamento do trecho
+  UI/DocCenter/                  # Central de Documentação (WPF)
   Resources/                     # .addin, atalhos de teclado
 ```
 
