@@ -21,6 +21,25 @@
             </DataGrid.Columns>
         </DataGrid>
 
+        <TextBlock Text="Esquema dos condutores" FontWeight="SemiBold" Margin="0,14,0,4" />
+        <ItemsControl ItemsSource="{Binding Condutores}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="0,0,10,0" HorizontalAlignment="Center">
+                        <Border Width="14" Height="34" CornerRadius="3"
+                                Background="{Binding Cor}" />
+                        <TextBlock Text="{Binding Rotulo}" HorizontalAlignment="Center"
+                                   FontWeight="SemiBold" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <Button Content="Fechar" Width="90" HorizontalAlignment="Right"
                 Margin="0,16,0,0" IsDefault="True" IsCancel="True" />
     </StackPanel>

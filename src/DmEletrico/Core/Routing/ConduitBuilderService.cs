@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
@@ -13,6 +14,7 @@ namespace DmEletrico.Core.Routing
         public int CircuitosProcessados { get; set; }
         public int ConduitesCriados { get; set; }
         public int CurvasCriadas { get; set; }
+        public int TrechosCompartilhados { get; set; }
         public List<string> Avisos { get; } = new();
 
         public override string ToString()
@@ -21,6 +23,7 @@ namespace DmEletrico.Core.Routing
             sb.AppendLine($"Circuitos processados: {CircuitosProcessados}");
             sb.AppendLine($"Conduítes criados: {ConduitesCriados}");
             sb.AppendLine($"Curvas (fittings) criadas: {CurvasCriadas}");
+            sb.AppendLine($"Trechos compartilhados (multi-circuito): {TrechosCompartilhados}");
             if (Avisos.Count > 0)
             {
                 sb.AppendLine("\nAvisos:");
@@ -32,10 +35,12 @@ namespace DmEletrico.Core.Routing
     }
 
     /// <summary>
-    /// Núcleo do Conduit Builder (requisito 3). Para cada ElectricalSystem do
-    /// modelo, traça o caminho ortogonal entre cada dispositivo e o painel de
-    /// origem, cria os Conduit e ConduitFitting, dimensiona pela NBR 5410 via
-    /// <see cref="ElectricalCalculator"/> e grava os parâmetros Dm_ em cada trecho.
+    /// Núcleo do Conduit Builder (requisito 3). Para cada ElectricalSystem, traça o
+    /// caminho (ortogonal em espinha ou direto) entre cada dispositivo e o painel,
+    /// com elevação por ambiente (laje/parede/piso); cria Conduit e ConduitFitting,
+    /// dimensiona pela NBR 5410 e grava os parâmetros Dm_. Em seguida, faz um
+    /// pós-passe que detecta trechos compartilhados por vários circuitos para
+    /// aplicar o FCA real e redimensionar o diâmetro pelo total de condutores.
     ///
     /// Deve ser chamado dentro de uma transação aberta.
     /// </summary>
@@ -44,14 +49,24 @@ namespace DmEletrico.Core.Routing
         private const double Tol = 1e-6;
         private readonly ElectricalCalculator _calc = new();
 
+        /// <summary>Metadados em memória de cada conduíte criado, para o pós-passe.</summary>
+        private sealed class ConduitMeta
+        {
+            public Conduit Conduit = null!;
+            public string SegKey = "";
+            public string CircuitoId = "";
+            public string CircuitoNumero = "";
+            public int NumCondutores;
+            public double Secao;
+            public double Corrente;
+            public double Fct;
+        }
+
         public ConduitBuildReport Build(Document doc, DmProjectSettings settings)
         {
             var report = new ConduitBuildReport();
 
-            var conduitTypeId = new FilteredElementCollector(doc)
-                .OfClass(typeof(ConduitType))
-                .FirstElementId();
-
+            var conduitTypeId = settings.ResolveConduitTypeId(doc);
             if (conduitTypeId == ElementId.InvalidElementId)
             {
                 report.Avisos.Add("Nenhum tipo de conduíte (ConduitType) carregado no projeto.");
@@ -63,13 +78,13 @@ namespace DmEletrico.Core.Routing
                 .Cast<ElectricalSystem>()
                 .ToList();
 
-            var spineFeet = UnitUtils.ConvertToInternalUnits(settings.AlturaRoteamento, UnitTypeId.Meters);
+            var metas = new List<ConduitMeta>();
 
             foreach (var system in systems)
             {
                 try
                 {
-                    ProcessSystem(doc, settings, system, conduitTypeId, spineFeet, report);
+                    ProcessSystem(doc, settings, system, conduitTypeId, report, metas);
                 }
                 catch (Exception ex)
                 {
@@ -77,16 +92,13 @@ namespace DmEletrico.Core.Routing
                 }
             }
 
+            AgregarTrechosCompartilhados(metas, report);
             return report;
         }
 
         private void ProcessSystem(
-            Document doc,
-            DmProjectSettings settings,
-            ElectricalSystem system,
-            ElementId conduitTypeId,
-            double spineFeet,
-            ConduitBuildReport report)
+            Document doc, DmProjectSettings settings, ElectricalSystem system,
+            ElementId conduitTypeId, ConduitBuildReport report, List<ConduitMeta> metas)
         {
             var panel = system.BaseEquipment;
             if (panel == null)
@@ -103,19 +115,23 @@ namespace DmEletrico.Core.Routing
             }
 
             var dispositivos = system.Elements.Cast<Element>().Where(e => e.Id != panel.Id).ToList();
-            if (dispositivos.Count == 0)
-                return;
+            if (dispositivos.Count == 0) return;
 
             report.CircuitosProcessados++;
 
-            // --- Dimensionamento do circuito (NBR 5410) ---
             var potenciaVa = dispositivos.Sum(d => ReadDouble(d, DmParameters.Potencia));
             var poles = Math.Max(1, (int)ReadDouble(dispositivos[0], DmParameters.NumeroPolos, fallback: 1));
-            var nCondutores = poles + 2; // fases + neutro + terra (estimativa v1)
+            var nCondutores = poles + 2; // fases + neutro + terra
+            var circuitoNumero = string.IsNullOrWhiteSpace(system.CircuitNumber) ? system.Id.ToString() : system.CircuitNumber;
 
             var levelId = ResolveLevelId(doc, panel);
             var levelElev = (doc.GetElement(levelId) as Level)?.Elevation ?? 0.0;
-            var spineZ = levelElev + spineFeet;
+
+            // Disjuntor do circuito (gravado nos dispositivos).
+            var correnteCirc = settings.TensaoNominal > 0 ? potenciaVa / settings.TensaoNominal : 0;
+            var disjuntor = Nbr5410Tables.DisjuntorComercial(correnteCirc);
+            foreach (var d in dispositivos)
+                d.LookupParameter(DmParameters.Disjuntor)?.Set(disjuntor);
 
             foreach (var dispositivo in dispositivos)
             {
@@ -126,24 +142,86 @@ namespace DmEletrico.Core.Routing
                     continue;
                 }
 
-                var caminho = OrthogonalRouter.Route(devPt, panelPt, spineZ);
-                var trechoLenFeet = ComprimentoTotal(caminho);
-                var trechoLenM = UnitUtils.ConvertFromInternalUnits(trechoLenFeet, UnitTypeId.Meters);
+                var ambiente = LerAmbiente(dispositivo);
+                var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(ambiente), UnitTypeId.Meters);
+                var spineZ = levelElev + offsetFeet;
 
-                var resultado = _calc.Calcular(new TrechoInput
+                var caminho = settings.Modo == ModoRoteamento.Direto
+                    ? OrthogonalRouter.RouteDireto(devPt, panelPt)
+                    : OrthogonalRouter.Route(devPt, panelPt, spineZ);
+
+                var trechoLenM = UnitUtils.ConvertFromInternalUnits(ComprimentoTotal(caminho), UnitTypeId.Meters);
+
+                var r = _calc.Calcular(new TrechoInput
                 {
                     ComprimentoM = trechoLenM,
                     PotenciaAparenteVa = potenciaVa,
                     TensaoNominalV = settings.TensaoNominal,
                     TemperaturaAmbienteC = settings.TemperaturaAmbiente,
-                    CircuitosAgrupados = 1 // TODO: detectar agrupamento real para o FCA
+                    CircuitosAgrupados = 1 // ajustado no pós-passe (FCA real)
                 });
 
-                var diametroMm = ConduitSizing.DiametroNominal(resultado.SecaoAdotadaMm2, nCondutores);
-
+                var diametroMm = ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
                 var conduits = CriarConduites(doc, conduitTypeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
-                AplicarParametros(doc, conduits, resultado, potenciaVa, diametroMm);
+                AplicarParametros(doc, conduits, r, potenciaVa, diametroMm, nCondutores,
+                    system.Id.ToString(), dispositivo.Id.ToString(), circuitoNumero);
+
+                foreach (var c in conduits)
+                    metas.Add(new ConduitMeta
+                    {
+                        Conduit = c,
+                        SegKey = SegKey(c),
+                        CircuitoId = system.Id.ToString(),
+                        CircuitoNumero = circuitoNumero,
+                        NumCondutores = nCondutores,
+                        Secao = r.SecaoAdotadaMm2,
+                        Corrente = r.CorrenteProjetoA,
+                        Fct = r.Fct
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Pós-passe: trechos coincidentes de circuitos distintos compartilham o
+        /// eletroduto. Aplica o FCA pelo número de circuitos e redimensiona seção e
+        /// diâmetro pelo total de condutores no trecho.
+        /// </summary>
+        private void AgregarTrechosCompartilhados(List<ConduitMeta> metas, ConduitBuildReport report)
+        {
+            foreach (var grupo in metas.GroupBy(m => m.SegKey))
+            {
+                var circuitos = grupo.Select(m => m.CircuitoId).Distinct().ToList();
+                if (circuitos.Count <= 1) continue;
+
+                report.TrechosCompartilhados++;
+
+                var fca = Nbr5410Tables.Fca(circuitos.Count);
+                var totalCondutores = grupo.Select(m => new { m.CircuitoId, m.NumCondutores })
+                    .GroupBy(x => x.CircuitoId).Sum(g => g.First().NumCondutores);
+                var numeros = string.Join(", ", grupo.Select(m => m.CircuitoNumero).Distinct());
+
+                var secaoGovernante = 0.0;
+                foreach (var m in grupo)
+                {
+                    var secao = m.Fct * fca > 0
+                        ? Nbr5410Tables.SecaoPorCapacidade(m.Corrente / (m.Fct * fca))
+                        : m.Secao;
+                    secaoGovernante = Math.Max(secaoGovernante, secao);
+                    m.Secao = secao;
+                }
+
+                var diamMm = ConduitSizing.DiametroNominal(secaoGovernante, totalCondutores);
+                var diamFeet = UnitUtils.ConvertToInternalUnits(diamMm, UnitTypeId.Millimeters);
+
+                foreach (var m in grupo)
+                {
+                    SetDouble(m.Conduit, DmParameters.Fca, fca);
+                    SetDouble(m.Conduit, DmParameters.SecaoAdotada, m.Secao);
+                    SetDouble(m.Conduit, DmParameters.DiametroNominal, diamFeet);
+                    SetInt(m.Conduit, DmParameters.NumCondutores, totalCondutores);
+                    SetString(m.Conduit, DmParameters.CircuitosNoTrecho, numeros);
+                }
             }
         }
 
@@ -170,15 +248,11 @@ namespace DmEletrico.Core.Routing
         {
             for (int i = 0; i < conduits.Count - 1; i++)
             {
-                var c1 = conduits[i];
-                var c2 = conduits[i + 1];
-
-                // Ponto comum entre os dois trechos consecutivos.
-                var juncao = PontoComum(c1, c2);
+                var juncao = PontoComum(conduits[i], conduits[i + 1]);
                 if (juncao == null) continue;
 
-                var con1 = FindConnectorAt(c1, juncao);
-                var con2 = FindConnectorAt(c2, juncao);
+                var con1 = FindConnectorAt(conduits[i], juncao);
+                var con2 = FindConnectorAt(conduits[i + 1], juncao);
                 if (con1 == null || con2 == null) continue;
 
                 try
@@ -194,16 +268,13 @@ namespace DmEletrico.Core.Routing
         }
 
         private void AplicarParametros(
-            Document doc, List<Conduit> conduits, TrechoResultado r, double potenciaVa, double diametroMm)
+            Document doc, List<Conduit> conduits, TrechoResultado r, double potenciaVa,
+            double diametroMm, int nCondutores, string circuitoId, string dispositivoId, string circuitoNumero)
         {
             var diamFeet = UnitUtils.ConvertToInternalUnits(diametroMm, UnitTypeId.Millimeters);
 
             foreach (var c in conduits)
             {
-                var lenFeet = (c.Location as LocationCurve)?.Curve?.Length ?? 0.0;
-                var lenM = UnitUtils.ConvertFromInternalUnits(lenFeet, UnitTypeId.Meters);
-
-                SetDouble(c, DmParameters.Comprimento, UnitUtils.ConvertToInternalUnits(lenM, UnitTypeId.Meters));
                 SetDouble(c, DmParameters.PotenciaAparente, potenciaVa);
                 SetDouble(c, DmParameters.CorrenteProjeto, r.CorrenteProjetoA);
                 SetDouble(c, DmParameters.Fct, r.Fct);
@@ -211,25 +282,39 @@ namespace DmEletrico.Core.Routing
                 SetDouble(c, DmParameters.SecaoAdotada, r.SecaoAdotadaMm2);
                 SetDouble(c, DmParameters.QuedaTensao, r.QuedaTensaoPercent);
                 SetDouble(c, DmParameters.DiametroNominal, diamFeet);
+                SetInt(c, DmParameters.NumCondutores, nCondutores);
+                SetString(c, DmParameters.CircuitoOrigemId, circuitoId);
+                SetString(c, DmParameters.DispositivoId, dispositivoId);
+                SetString(c, DmParameters.CircuitosNoTrecho, circuitoNumero);
             }
         }
 
         // --- Helpers de geometria/conector ---
 
+        private static string SegKey(Conduit c)
+        {
+            var curve = (c.Location as LocationCurve)?.Curve;
+            if (curve == null) return Guid.NewGuid().ToString();
+            var p = curve.GetEndPoint(0);
+            var q = curve.GetEndPoint(1);
+            string a = Key(p), b = Key(q);
+            return string.CompareOrdinal(a, b) <= 0 ? a + "|" + b : b + "|" + a;
+        }
+
+        private static string Key(XYZ p) => string.Format(CultureInfo.InvariantCulture,
+            "{0:F3},{1:F3},{2:F3}", p.X, p.Y, p.Z);
+
         private static double ComprimentoTotal(IList<XYZ> pts)
         {
             double total = 0;
-            for (int i = 0; i < pts.Count - 1; i++)
-                total += pts[i].DistanceTo(pts[i + 1]);
+            for (int i = 0; i < pts.Count - 1; i++) total += pts[i].DistanceTo(pts[i + 1]);
             return total;
         }
 
         private static XYZ? PontoComum(Conduit a, Conduit b)
         {
-            var ca = EndPoints(a);
-            var cb = EndPoints(b);
-            foreach (var pa in ca)
-                foreach (var pb in cb)
+            foreach (var pa in EndPoints(a))
+                foreach (var pb in EndPoints(b))
                     if (pa.DistanceTo(pb) <= 1e-4) return pa;
             return null;
         }
@@ -264,15 +349,17 @@ namespace DmEletrico.Core.Routing
             if (manager == null) return null;
 
             foreach (Connector con in manager.Connectors)
-            {
-                if (con.Domain == Domain.DomainElectrical)
-                    return con.Origin;
-            }
+                if (con.Domain == Domain.DomainElectrical) return con.Origin;
             return null;
         }
 
-        private static XYZ? LocationOf(Element e)
-            => (e.Location as LocationPoint)?.Point;
+        private static XYZ? LocationOf(Element e) => (e.Location as LocationPoint)?.Point;
+
+        private static AmbienteInstalacao LerAmbiente(Element e)
+        {
+            var s = e.LookupParameter(DmParameters.Ambiente)?.AsString();
+            return Enum.TryParse<AmbienteInstalacao>(s, ignoreCase: true, out var a) ? a : AmbienteInstalacao.Teto;
+        }
 
         private static ElementId ResolveLevelId(Document doc, Element e)
         {
@@ -280,11 +367,8 @@ namespace DmEletrico.Core.Routing
                 return e.LevelId;
 
             var level = new FilteredElementCollector(doc)
-                .OfClass(typeof(Level))
-                .Cast<Level>()
-                .OrderBy(l => l.Elevation)
-                .FirstOrDefault();
-
+                .OfClass(typeof(Level)).Cast<Level>()
+                .OrderBy(l => l.Elevation).FirstOrDefault();
             return level?.Id ?? ElementId.InvalidElementId;
         }
 
@@ -302,7 +386,8 @@ namespace DmEletrico.Core.Routing
             };
         }
 
-        private static void SetDouble(Element e, string name, double value)
-            => e.LookupParameter(name)?.Set(value);
+        private static void SetDouble(Element e, string name, double value) => e.LookupParameter(name)?.Set(value);
+        private static void SetInt(Element e, string name, int value) => e.LookupParameter(name)?.Set(value);
+        private static void SetString(Element e, string name, string value) => e.LookupParameter(name)?.Set(value);
     }
 }

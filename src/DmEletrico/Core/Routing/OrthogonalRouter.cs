@@ -34,6 +34,9 @@ namespace DmEletrico.Core.Routing
             return Dedupe(pontos);
         }
 
+        /// <summary>Roteamento direto: segmento único entre origem e destino.</summary>
+        public static IList<XYZ> RouteDireto(XYZ from, XYZ to) => Dedupe(new List<XYZ> { from, to });
+
         private static IList<XYZ> Dedupe(IList<XYZ> pts)
         {
             var result = new List<XYZ>();
