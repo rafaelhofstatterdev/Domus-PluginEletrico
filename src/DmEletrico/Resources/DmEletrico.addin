@@ -8,7 +8,7 @@
       %AppData%\Autodesk\Revit\Addins\<versao>\. Ajuste o caminho do Assembly
       abaixo para apontar para o bin do build, ou use caminho absoluto fixo.
     -->
-    <Assembly>..\..\..\src\DmEletrico\bin\x64\Debug\DmEletrico.dll</Assembly>
+    <Assembly>C:\Users\Rafael\Desktop\Codigos\Domus-PluginEletrico\src\DmEletrico\bin\x64\Debug\DmEletrico.dll</Assembly>
     <AddInId>6b6d8a3e-2c0f-4f7a-9b1e-1d2c3a4b5c6d</AddInId>
     <FullClassName>DmEletrico.Application.DmApplication</FullClassName>
     <VendorId>DOMUS</VendorId>

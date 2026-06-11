@@ -9,6 +9,7 @@ namespace DmEletrico.Commands
     /// Requisito 5 — remoção de TAG. O usuário escolhe uma TAG e ela é removida,
     /// mantendo o vínculo dos demais elementos.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmTagRemoveCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

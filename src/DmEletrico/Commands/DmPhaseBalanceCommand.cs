@@ -8,6 +8,7 @@ namespace DmEletrico.Commands
     /// Requisito 6 — Balanceamento de fases. Reorganiza os circuitos dos QDCs
     /// para equilibrar a carga entre as fases A, B e C.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmPhaseBalanceCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

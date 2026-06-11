@@ -8,6 +8,7 @@ namespace DmEletrico.Commands
     /// Requisito 12 — registra/mescla os atalhos CB/DC/MT/RF no
     /// KeyboardShortcuts.xml da versão do Revit, reportando conflitos.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmShortcutsCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

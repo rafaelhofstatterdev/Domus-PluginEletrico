@@ -10,6 +10,7 @@ namespace DmEletrico.Commands
     /// fase e número de polos. Colunas baseadas em parâmetros Dm_ (nomes estáveis,
     /// independentes do idioma do Revit).
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmLoadScheduleCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

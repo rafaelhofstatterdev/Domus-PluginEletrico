@@ -9,6 +9,7 @@ namespace DmEletrico.Commands
     /// QDCs e seus circuitos e dispara a geração de quadros de cargas,
     /// quantitativos e diagramas unifilares.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmDocCenterCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

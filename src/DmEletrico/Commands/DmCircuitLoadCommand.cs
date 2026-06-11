@@ -14,6 +14,7 @@ namespace DmEletrico.Commands
     /// nos dispositivos elétricos selecionados (ou escolhidos), gravando os
     /// parâmetros Dm_ correspondentes.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmCircuitLoadCommand : DmCommandBase
     {
         private static readonly BuiltInCategory[] Categorias =

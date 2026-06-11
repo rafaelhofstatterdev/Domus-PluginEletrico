@@ -10,6 +10,7 @@ namespace DmEletrico.Commands
     /// Requisito 7 — Manual TAG (atalho MT). O usuário escolhe um conduíte e a
     /// TAG é inserida no ponto clicado, mantendo o vínculo paramétrico.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmManualTagCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

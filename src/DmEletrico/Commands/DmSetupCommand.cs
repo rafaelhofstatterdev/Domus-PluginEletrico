@@ -11,6 +11,7 @@ namespace DmEletrico.Commands
     /// Requisito 2 — Setup. Abre o diálogo WPF de configuração, injeta os
     /// parâmetros compartilhados e grava as variáveis globais no ProjectInformation.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmSetupCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

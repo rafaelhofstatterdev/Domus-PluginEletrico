@@ -8,6 +8,7 @@ namespace DmEletrico.Commands
     /// Requisito 13 — Extração de Quantitativos. Gera ViewSchedules de materiais:
     /// conduítes (por diâmetro, com seção e comprimento) e dispositivos (por tipo).
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmMaterialsCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

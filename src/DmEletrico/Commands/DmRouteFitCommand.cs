@@ -10,6 +10,7 @@ namespace DmEletrico.Commands
     /// geometria inválida (comprimento zero, curvas órfãs) após movimentação de
     /// dispositivos e restaura a continuidade da rede física.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmRouteFitCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

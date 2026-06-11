@@ -8,6 +8,7 @@ namespace DmEletrico.Commands
     /// Requisito 7 — Auto TAG. Insere TAGs de fiação em todos os conduítes da
     /// vista ativa que ainda não estejam etiquetados.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmAutoTagCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

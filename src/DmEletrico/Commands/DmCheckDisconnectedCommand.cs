@@ -11,6 +11,7 @@ namespace DmEletrico.Commands
     /// identifica famílias elétricas sem ElectricalSystem atribuído e lista os
     /// elementos órfãos com categoria e localização.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmCheckDisconnectedCommand : DmCommandBase
     {
         private static readonly BuiltInCategory[] Categorias =

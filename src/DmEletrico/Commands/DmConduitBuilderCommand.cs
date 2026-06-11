@@ -10,6 +10,7 @@ namespace DmEletrico.Commands
     /// traça o roteamento ortogonal 3D entre dispositivos e painel, insere
     /// ConduitFitting nas mudanças de direção e dimensiona pela NBR 5410.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmConduitBuilderCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

@@ -10,6 +10,7 @@ namespace DmEletrico.Commands
     /// coordenadas transformadas para o hospedeiro. Base para importação de
     /// circuitos/cargas e roteamento entre modelos federados (roadmap).
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmLinkCoordinationCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

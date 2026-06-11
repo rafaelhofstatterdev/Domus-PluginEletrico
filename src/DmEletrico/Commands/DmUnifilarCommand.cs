@@ -12,6 +12,7 @@ namespace DmEletrico.Commands
     /// destino). O dimensionamento dos ramais usa o motor de cálculo, de modo que
     /// o diagrama reflete as cargas atribuídas.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmUnifilarCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)

@@ -12,6 +12,7 @@ namespace DmEletrico.Commands
     /// Requisito 3 — cria um circuito (ElectricalSystem) a partir dos dispositivos
     /// selecionados e o atribui a um QDC, com numeração sequencial.
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmCreateCircuitCommand : DmCommandBase
     {
         private static readonly BuiltInCategory[] Terminais =

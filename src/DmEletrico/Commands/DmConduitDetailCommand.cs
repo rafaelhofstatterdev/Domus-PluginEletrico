@@ -16,6 +16,7 @@ namespace DmEletrico.Commands
     /// contexto (clique direito) de elementos; este comando é o equivalente
     /// suportado (selecionar o conduíte e acionar o detalhamento).
     /// </summary>
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmConduitDetailCommand : DmCommandBase
     {
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
