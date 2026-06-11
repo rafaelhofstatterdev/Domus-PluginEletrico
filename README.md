@@ -22,9 +22,9 @@ registrados como comandos com stubs prontos para implementação.
 | 6 — Desconectados | `DmCheckDisconnected` | — | ✅ Varredura funcional |
 | 7 — Auto/Manual TAG | `DmAutoTag` / `DmManualTag` | MT | 🟡 Stub |
 | 8 — Central de Doc. | `DmDocCenter` | DC | 🟡 Stub |
-| 9 — Quadros de Cargas | `DmLoadSchedule` | — | 🟡 Stub |
+| 9 — Quadros de Cargas | `DmLoadSchedule` | — | ✅ ViewSchedule por circuito |
 | 10 — Unifilar | `DmUnifilar` | — | 🟡 Stub |
-| 13 — Quantitativos | `DmMaterials` | — | 🟡 Stub |
+| 13 — Quantitativos | `DmMaterials` | — | ✅ ViewSchedule conduítes + dispositivos |
 
 ## Requisitos de build
 
@@ -111,6 +111,7 @@ src/DmEletrico/
   Core/                          # Parâmetros, settings, injeção, cálculo
     Calculation/                 # Motor NBR 5410 + tabelas + dimensionamento de eletroduto
     Routing/                     # Roteamento ortogonal, Conduit Builder, Route Fit
+    Documentation/               # ScheduleBuilder (quadros de cargas, quantitativos)
   UI/Setup/                      # Diálogo WPF de Setup
   UI/Detail/                     # Janela WPF de detalhamento do trecho
   Resources/                     # .addin, atalhos de teclado
