@@ -21,6 +21,10 @@ namespace DmEletrico.Core
         public const string SecaoAdotada = "Dm_SecaoAdotada";         // mm²
         public const string QuedaTensao = "Dm_QuedaTensao";           // %
         public const string DiametroNominal = "Dm_DiametroNominal";   // mm
+        public const string CircuitoOrigemId = "Dm_CircuitoOrigemId"; // Id do ElectricalSystem que originou o trecho
+        public const string DispositivoId = "Dm_DispositivoId";       // Id do dispositivo terminal do ramal
+        public const string CircuitosNoTrecho = "Dm_CircuitosNoTrecho"; // números de circuitos que passam (lista)
+        public const string NumCondutores = "Dm_NumCondutores";       // total de condutores no trecho
 
         // --- Parâmetros de circuito / dispositivo ---
         public const string NumeroCircuito = "Dm_NumeroCircuito";
@@ -29,12 +33,19 @@ namespace DmEletrico.Core
         public const string TensaoOperacao = "Dm_TensaoOperacao";     // V
         public const string Fase = "Dm_Fase";                         // A/B/C
         public const string TipoCircuito = "Dm_TipoCircuito";         // Iluminação/TUG/TUE
+        public const string Disjuntor = "Dm_Disjuntor";               // A (corrente nominal do disjuntor)
+        public const string Ambiente = "Dm_Ambiente";                 // Teto/Parede/Piso
 
         // --- Project Information (variáveis globais do Setup) ---
         public const string TemperaturaAmbiente = "Dm_TemperaturaAmbiente"; // °C
         public const string TensaoNominal = "Dm_TensaoNominal";             // V
         public const string MetodoInstalacao = "Dm_MetodoInstalacao";
-        public const string AlturaRoteamento = "Dm_AlturaRoteamento";       // m (espinha de conduítes)
+        public const string AlturaRoteamento = "Dm_AlturaRoteamento";       // m (espinha de conduítes - padrão)
+        public const string OffsetLaje = "Dm_OffsetLaje";                   // m
+        public const string OffsetParede = "Dm_OffsetParede";               // m
+        public const string OffsetContrapiso = "Dm_OffsetContrapiso";       // m
+        public const string ModoRoteamento = "Dm_ModoRoteamento";           // Ortogonal/Direto
+        public const string ConduitTypeId = "Dm_ConduitTypeId";             // Id do ConduitType escolhido
         public const string SetupConcluido = "Dm_SetupConcluido";           // Yes/No
 
         /// <summary>
@@ -75,22 +86,28 @@ namespace DmEletrico.Core
             return new List<Definition>
             {
                 // Trecho de conduíte
-                new Definition(Comprimento,      SpecTypeId.Length,         isInstance: true, conduit),
-                new Definition(PotenciaAparente, SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(CorrenteProjeto,  SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(Fct,              SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(Fca,              SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(SecaoAdotada,     SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(QuedaTensao,      SpecTypeId.Number,         isInstance: true, conduit),
-                new Definition(DiametroNominal,  SpecTypeId.Length,         isInstance: true, conduit),
+                new Definition(Comprimento,       SpecTypeId.Length,         isInstance: true, conduit),
+                new Definition(PotenciaAparente,  SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(CorrenteProjeto,   SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(Fct,               SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(Fca,               SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(SecaoAdotada,      SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(QuedaTensao,       SpecTypeId.Number,         isInstance: true, conduit),
+                new Definition(DiametroNominal,   SpecTypeId.Length,         isInstance: true, conduit),
+                new Definition(CircuitoOrigemId,  SpecTypeId.String.Text,    isInstance: true, conduit),
+                new Definition(DispositivoId,     SpecTypeId.String.Text,    isInstance: true, conduit),
+                new Definition(CircuitosNoTrecho, SpecTypeId.String.Text,    isInstance: true, conduit),
+                new Definition(NumCondutores,     SpecTypeId.Int.Integer,    isInstance: true, conduit),
 
                 // Circuito / dispositivo
-                new Definition(NumeroCircuito,   SpecTypeId.String.Text,    isInstance: true, electrical),
-                new Definition(Potencia,         SpecTypeId.Number,         isInstance: true, electrical),
-                new Definition(NumeroPolos,      SpecTypeId.Int.Integer,    isInstance: true, electrical),
-                new Definition(TensaoOperacao,   SpecTypeId.Number,         isInstance: true, electrical),
-                new Definition(Fase,             SpecTypeId.String.Text,    isInstance: true, electrical),
-                new Definition(TipoCircuito,     SpecTypeId.String.Text,    isInstance: true, electrical),
+                new Definition(NumeroCircuito,    SpecTypeId.String.Text,    isInstance: true, electrical),
+                new Definition(Potencia,          SpecTypeId.Number,         isInstance: true, electrical),
+                new Definition(NumeroPolos,       SpecTypeId.Int.Integer,    isInstance: true, electrical),
+                new Definition(TensaoOperacao,    SpecTypeId.Number,         isInstance: true, electrical),
+                new Definition(Fase,              SpecTypeId.String.Text,    isInstance: true, electrical),
+                new Definition(TipoCircuito,      SpecTypeId.String.Text,    isInstance: true, electrical),
+                new Definition(Disjuntor,         SpecTypeId.Number,         isInstance: true, electrical),
+                new Definition(Ambiente,          SpecTypeId.String.Text,    isInstance: true, electrical),
             };
         }
     }

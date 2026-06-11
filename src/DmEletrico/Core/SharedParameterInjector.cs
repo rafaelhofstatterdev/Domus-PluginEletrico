@@ -104,6 +104,11 @@ namespace DmEletrico.Core
                 (DmParameters.TemperaturaAmbiente, SpecTypeId.Number),
                 (DmParameters.TensaoNominal,       SpecTypeId.Number),
                 (DmParameters.AlturaRoteamento,    SpecTypeId.Number),
+                (DmParameters.OffsetLaje,          SpecTypeId.Number),
+                (DmParameters.OffsetParede,        SpecTypeId.Number),
+                (DmParameters.OffsetContrapiso,    SpecTypeId.Number),
+                (DmParameters.ModoRoteamento,      SpecTypeId.String.Text),
+                (DmParameters.ConduitTypeId,       SpecTypeId.String.Text),
                 (DmParameters.MetodoInstalacao,    SpecTypeId.String.Text),
                 (DmParameters.SetupConcluido,      SpecTypeId.Boolean.YesNo),
             };

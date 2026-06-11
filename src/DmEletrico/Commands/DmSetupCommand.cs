@@ -1,4 +1,6 @@
+using System.Linq;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Electrical;
 using Autodesk.Revit.UI;
 using DmEletrico.Core;
 using DmEletrico.UI.Setup;
@@ -15,7 +17,13 @@ namespace DmEletrico.Commands
         {
             var settings = DmProjectSettings.Read(doc);
 
-            var vm = new DmSetupViewModel(settings);
+            var tiposConduite = new FilteredElementCollector(doc)
+                .OfClass(typeof(ConduitType))
+                .Cast<ConduitType>()
+                .Select(t => new ConduitTypeOption(t.Name, t.Id.Value.ToString()))
+                .ToList();
+
+            var vm = new DmSetupViewModel(settings, tiposConduite);
             var window = new DmSetupWindow { DataContext = vm };
 
             var ok = window.ShowDialog();
