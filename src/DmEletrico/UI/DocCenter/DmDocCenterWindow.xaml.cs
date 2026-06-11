@@ -18,7 +18,7 @@ namespace DmEletrico.UI.DocCenter
         private void OnQuadroCargas(object sender, RoutedEventArgs e)
         {
             var r = DocumentationService.GerarQuadroDeCargas(_doc);
-            Status.Text = $"Quadro de cargas '{r.Schedule.Name}' criado.";
+            Status.Text = $"{r.Schedules.Count} quadro(s) de cargas criado(s).";
         }
 
         private void OnQuantitativos(object sender, RoutedEventArgs e)

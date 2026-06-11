@@ -26,7 +26,9 @@ namespace DmEletrico.Core.Documentation
             BuiltInCategory category,
             string name,
             IEnumerable<string> fieldNames,
-            string? groupByFieldName = null)
+            string? groupByFieldName = null,
+            string? filterFieldName = null,
+            string? filterValue = null)
         {
             var categoryId = Category.GetCategory(doc, category).Id;
             var schedule = ViewSchedule.CreateSchedule(doc, categoryId);
@@ -50,11 +52,15 @@ namespace DmEletrico.Core.Documentation
 
             if (groupByFieldName != null && added.TryGetValue(groupByFieldName, out var groupField))
             {
-                var sgf = new ScheduleSortGroupField(groupField.FieldId)
-                {
-                    ShowHeader = true
-                };
+                var sgf = new ScheduleSortGroupField(groupField.FieldId) { ShowHeader = true };
                 def.AddSortGroupField(sgf);
+            }
+
+            if (filterFieldName != null && filterValue != null &&
+                added.TryGetValue(filterFieldName, out var filterField))
+            {
+                try { def.AddFilter(new ScheduleFilter(filterField.FieldId, ScheduleFilterType.Equal, filterValue)); }
+                catch { /* tipo de campo não filtrável por igualdade textual */ }
             }
 
             return result;

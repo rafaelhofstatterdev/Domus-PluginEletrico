@@ -4,6 +4,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using DmEletrico.Core;
+using DmEletrico.Core.Calculation;
 using DmEletrico.UI.Load;
 
 namespace DmEletrico.Commands
@@ -38,12 +39,16 @@ namespace DmEletrico.Commands
             using (var tx = new Transaction(doc, "DmEletrico — Atribuir Carga"))
             {
                 tx.Start();
+                var corrente = vm.TensaoOperacao > 0 ? vm.Potencia / vm.TensaoOperacao : 0;
+                var disjuntor = Nbr5410Tables.DisjuntorComercial(corrente);
+
                 foreach (var e in dispositivos)
                 {
                     e.LookupParameter(DmParameters.Potencia)?.Set(vm.Potencia);
                     e.LookupParameter(DmParameters.NumeroPolos)?.Set(vm.NumeroPolos);
                     e.LookupParameter(DmParameters.TensaoOperacao)?.Set(vm.TensaoOperacao);
                     e.LookupParameter(DmParameters.TipoCircuito)?.Set(vm.TipoCircuito);
+                    e.LookupParameter(DmParameters.Disjuntor)?.Set(disjuntor);
                 }
                 tx.Commit();
             }

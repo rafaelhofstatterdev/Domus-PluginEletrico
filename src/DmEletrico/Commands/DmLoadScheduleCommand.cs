@@ -15,9 +15,11 @@ namespace DmEletrico.Commands
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
             var result = DocumentationService.GerarQuadroDeCargas(doc);
-            uiDoc.ActiveView = result.Schedule;
+            if (result.Schedules.Count > 0)
+                uiDoc.ActiveView = result.Schedules[0];
 
-            var msg = $"Quadro de cargas '{result.Schedule.Name}' criado.";
+            var msg = $"{result.Schedules.Count} quadro(s) de cargas criado(s):\n" +
+                      string.Join("\n", result.Schedules.ConvertAll(s => "• " + s.Name));
             if (result.CamposNaoEncontrados.Count > 0)
                 msg += "\n\nColunas não disponíveis (rode o Setup para injetar os parâmetros):\n"
                        + string.Join(", ", result.CamposNaoEncontrados);

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.DB;
 using DmEletrico.Core;
 
@@ -13,8 +14,8 @@ namespace DmEletrico.Core.Documentation
     {
         public sealed class QuadroCargasResult
         {
-            public ViewSchedule Schedule { get; set; } = null!;
-            public List<string> CamposNaoEncontrados { get; set; } = new();
+            public List<ViewSchedule> Schedules { get; } = new();
+            public List<string> CamposNaoEncontrados { get; } = new();
         }
 
         public sealed class QuantitativosResult
@@ -24,33 +25,61 @@ namespace DmEletrico.Core.Documentation
             public List<string> CamposNaoEncontrados { get; } = new();
         }
 
+        /// <summary>
+        /// Gera um quadro de cargas (ViewSchedule) por QDC, filtrado por Dm_Quadro,
+        /// incluindo a coluna de disjuntor. Caso nenhum QDC esteja nomeado nos
+        /// dispositivos, gera um quadro único consolidado.
+        /// </summary>
         public static QuadroCargasResult GerarQuadroDeCargas(Document doc)
         {
-            using var tx = new Transaction(doc, "DmEletrico — Quadro de Cargas");
+            var campos = new[]
+            {
+                DmParameters.NumeroCircuito,
+                DmParameters.TipoCircuito,
+                DmParameters.Potencia,
+                DmParameters.TensaoOperacao,
+                DmParameters.Disjuntor,
+                DmParameters.Fase,
+                DmParameters.NumeroPolos
+            };
+
+            var quadros = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_ElectricalEquipment)
+                .WhereElementIsNotElementType()
+                .OfClass(typeof(FamilyInstance))
+                .Cast<FamilyInstance>()
+                .Select(p => p.Name)
+                .Distinct()
+                .ToList();
+
+            var result = new QuadroCargasResult();
+
+            using var tx = new Transaction(doc, "DmEletrico — Quadros de Cargas");
             tx.Start();
 
-            var r = ScheduleBuilder.Create(
-                doc,
-                BuiltInCategory.OST_ElectricalFixtures,
-                "DmEletrico - Quadro de Cargas",
-                new[]
+            if (quadros.Count == 0)
+            {
+                var r = ScheduleBuilder.Create(doc, BuiltInCategory.OST_ElectricalFixtures,
+                    "DmEletrico - Quadro de Cargas", campos, groupByFieldName: DmParameters.NumeroCircuito);
+                result.Schedules.Add(r.Schedule);
+                result.CamposNaoEncontrados.AddRange(r.CamposNaoEncontrados);
+            }
+            else
+            {
+                foreach (var nome in quadros)
                 {
-                    DmParameters.NumeroCircuito,
-                    DmParameters.TipoCircuito,
-                    DmParameters.Potencia,
-                    DmParameters.TensaoOperacao,
-                    DmParameters.Fase,
-                    DmParameters.NumeroPolos
-                },
-                groupByFieldName: DmParameters.NumeroCircuito);
+                    var r = ScheduleBuilder.Create(doc, BuiltInCategory.OST_ElectricalFixtures,
+                        $"DmEletrico - Quadro de Cargas {nome}", campos,
+                        groupByFieldName: DmParameters.NumeroCircuito,
+                        filterFieldName: DmParameters.Quadro, filterValue: nome);
+                    result.Schedules.Add(r.Schedule);
+                    foreach (var c in r.CamposNaoEncontrados)
+                        if (!result.CamposNaoEncontrados.Contains(c)) result.CamposNaoEncontrados.Add(c);
+                }
+            }
 
             tx.Commit();
-
-            return new QuadroCargasResult
-            {
-                Schedule = r.Schedule,
-                CamposNaoEncontrados = r.CamposNaoEncontrados
-            };
+            return result;
         }
 
         public static QuantitativosResult GerarQuantitativos(Document doc)

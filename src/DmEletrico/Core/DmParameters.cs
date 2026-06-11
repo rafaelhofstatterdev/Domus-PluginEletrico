@@ -35,6 +35,7 @@ namespace DmEletrico.Core
         public const string TipoCircuito = "Dm_TipoCircuito";         // Iluminação/TUG/TUE
         public const string Disjuntor = "Dm_Disjuntor";               // A (corrente nominal do disjuntor)
         public const string Ambiente = "Dm_Ambiente";                 // Teto/Parede/Piso
+        public const string Quadro = "Dm_Quadro";                     // nome do QDC ao qual o dispositivo pertence
 
         // --- Project Information (variáveis globais do Setup) ---
         public const string TemperaturaAmbiente = "Dm_TemperaturaAmbiente"; // °C
@@ -108,6 +109,7 @@ namespace DmEletrico.Core
                 new Definition(TipoCircuito,      SpecTypeId.String.Text,    isInstance: true, electrical),
                 new Definition(Disjuntor,         SpecTypeId.Number,         isInstance: true, electrical),
                 new Definition(Ambiente,          SpecTypeId.String.Text,    isInstance: true, electrical),
+                new Definition(Quadro,            SpecTypeId.String.Text,    isInstance: true, electrical),
             };
         }
     }

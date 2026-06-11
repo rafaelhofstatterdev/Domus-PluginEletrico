@@ -29,6 +29,7 @@ namespace DmEletrico.Core.Circuits
             doc.Regenerate();
 
             EscreverNumero(doc, system, system.CircuitNumber);
+            EscreverQuadro(system, panel.Name);
             tx.Commit();
             return system;
         }
@@ -41,6 +42,7 @@ namespace DmEletrico.Core.Circuits
             system.SelectPanel(novoPainel);
             doc.Regenerate();
             EscreverNumero(doc, system, system.CircuitNumber);
+            EscreverQuadro(system, novoPainel.Name);
             tx.Commit();
         }
 
@@ -70,6 +72,12 @@ namespace DmEletrico.Core.Circuits
         {
             foreach (Element e in system.Elements)
                 e.LookupParameter(DmParameters.NumeroCircuito)?.Set(numero);
+        }
+
+        private static void EscreverQuadro(ElectricalSystem system, string quadro)
+        {
+            foreach (Element e in system.Elements)
+                e.LookupParameter(DmParameters.Quadro)?.Set(quadro);
         }
     }
 }
