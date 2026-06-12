@@ -117,50 +117,92 @@ namespace DmEletrico.Core.Routing
             var disjuntor = Nbr5410Tables.DisjuntorComercial(correnteCirc);
             foreach (var d in dispositivos) d.LookupParameter(DmParameters.Disjuntor)?.Set(disjuntor);
 
-            var painelOrigem = Origem(panel);
+            // Topologia "vizinho mais próximo": árvore mínima (Prim) enraizada no
+            // quadro. A cada passo liga o nó FORA da árvore mais próximo de algum nó
+            // JÁ na árvore. Assim uma luminária-junção encadeia para a vizinha mais
+            // próxima (usando um conector lateral livre por aresta) em vez de cada
+            // dispositivo voltar isolado ao quadro.
+            var nodes = new List<Element> { panel };
+            nodes.AddRange(dispositivos);
+            var pos = nodes.Select(Origem).ToList();
+            var naArvore = new bool[nodes.Count];
+            naArvore[0] = true;
 
-            foreach (var dispositivo in dispositivos)
+            for (int restantes = nodes.Count - 1; restantes > 0; restantes--)
             {
-                var devLoc = Origem(dispositivo);
-                // Espinha decidida pela altura dos dispositivos (não por um plano global).
-                var spineBase = Math.Max(devLoc.Z, painelOrigem.Z);
-
-                var devCon = EscolherConectorConduite(dispositivo, painelOrigem, spineBase, options.Caminho);
-                var panCon = EscolherConectorConduite(panel, devLoc, spineBase, options.Caminho);
-                var devPt = devCon?.Origin ?? devLoc;
-                var panPt = panCon?.Origin ?? painelOrigem;
-
-                var spineZ = SpineElevation(devCon, devPt, panCon, panPt);
-
-                var caminho = CaminhoComStubs(devCon, devPt, panCon, panPt, spineZ, options, settings);
-                var trechoLenM = UnitUtils.ConvertFromInternalUnits(OrthogonalRouter.Comprimento(caminho), UnitTypeId.Meters);
-
-                var r = _calc.Calcular(new TrechoInput
+                int de = -1, para = -1;
+                double melhor = double.MaxValue;
+                for (int i = 0; i < nodes.Count; i++)
                 {
-                    ComprimentoM = trechoLenM,
-                    PotenciaAparenteVa = potenciaVa,
-                    TensaoNominalV = settings.TensaoNominal,
-                    TemperaturaAmbienteC = settings.TemperaturaAmbiente,
-                    CircuitosAgrupados = 1
-                });
-
-                var diametroMm = options.DiametroForcadoMm > 0
-                    ? options.DiametroForcadoMm
-                    : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
-
-                var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
-                CriarCurvas(doc, conduits, report);
-                ConectarPontas(conduits, devCon, panCon, report);
-                AplicarParametros(conduits, r, potenciaVa, diametroMm, nCondutores, poles,
-                    chave, dispositivo.Id.ToString(), circuito.Numero);
-
-                foreach (var c in conduits)
-                    metas.Add(new ConduitMeta
+                    if (!naArvore[i]) continue;
+                    for (int j = 0; j < nodes.Count; j++)
                     {
-                        Conduit = c, SegKey = SegKey(c), CircuitoId = chave, CircuitoNumero = circuito.Numero,
-                        NumCondutores = nCondutores, Secao = r.SecaoAdotadaMm2, Corrente = r.CorrenteProjetoA, Fct = r.Fct
-                    });
+                        if (naArvore[j]) continue;
+                        var d = pos[i].DistanceTo(pos[j]);
+                        if (d < melhor) { melhor = d; de = i; para = j; }
+                    }
+                }
+                if (para < 0) break;
+                naArvore[para] = true;
+
+                RotearAresta(doc, nodes[de], nodes[para], tetoId, paredeId, levelId,
+                    potenciaVa, nCondutores, poles, chave, circuito.Numero, options, settings, report, metas);
             }
+        }
+
+        /// <summary>
+        /// Roteia e cria os conduítes de UMA aresta da árvore (quadro→dispositivo ou
+        /// dispositivo→dispositivo): escolhe os conectores de cada ponta, monta o
+        /// caminho ortogonal, cria conduítes/curvas, conecta as pontas e aplica os
+        /// parâmetros elétricos. Cada conector é escolhido entre os AINDA livres, então
+        /// um nó-junção distribui suas arestas por conectores diferentes.
+        /// </summary>
+        private void RotearAresta(
+            Document doc, Element elemA, Element elemB,
+            ElementId tetoId, ElementId paredeId, ElementId levelId,
+            double potenciaVa, int nCondutores, int poles, string chave, string circuitoNumero,
+            ConduitBuildOptions options, DmProjectSettings settings,
+            ConduitBuildReport report, List<ConduitMeta> metas)
+        {
+            var locA = Origem(elemA);
+            var locB = Origem(elemB);
+            var spineBase = Math.Max(locA.Z, locB.Z);
+
+            var conA = EscolherConectorConduite(elemA, locB, spineBase, options.Caminho);
+            var conB = EscolherConectorConduite(elemB, locA, spineBase, options.Caminho);
+            var ptA = conA?.Origin ?? locA;
+            var ptB = conB?.Origin ?? locB;
+
+            var spineZ = SpineElevation(conA, ptA, conB, ptB);
+
+            var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options, settings);
+            var trechoLenM = UnitUtils.ConvertFromInternalUnits(OrthogonalRouter.Comprimento(caminho), UnitTypeId.Meters);
+
+            var r = _calc.Calcular(new TrechoInput
+            {
+                ComprimentoM = trechoLenM,
+                PotenciaAparenteVa = potenciaVa,
+                TensaoNominalV = settings.TensaoNominal,
+                TemperaturaAmbienteC = settings.TemperaturaAmbiente,
+                CircuitosAgrupados = 1
+            });
+
+            var diametroMm = options.DiametroForcadoMm > 0
+                ? options.DiametroForcadoMm
+                : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
+
+            var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
+            CriarCurvas(doc, conduits, report);
+            ConectarPontas(conduits, conA, conB, report);
+            AplicarParametros(conduits, r, potenciaVa, diametroMm, nCondutores, poles,
+                chave, elemB.Id.ToString(), circuitoNumero);
+
+            foreach (var c in conduits)
+                metas.Add(new ConduitMeta
+                {
+                    Conduit = c, SegKey = SegKey(c), CircuitoId = chave, CircuitoNumero = circuitoNumero,
+                    NumCondutores = nCondutores, Secao = r.SecaoAdotadaMm2, Corrente = r.CorrenteProjetoA, Fct = r.Fct
+                });
         }
 
         /// <summary>Modo "dispositivos selecionados": conecta os dispositivos escolhidos.</summary>
@@ -344,10 +386,11 @@ namespace DmEletrico.Core.Routing
 
         /// <summary>
         /// Monta o caminho com "stubs" alinhados ao eixo de cada conector: um trecho
-        /// sai do conector SEMPRE na direção para fora dele (+BasisZ — nunca
-        /// invertida, senão o conduíte entraria no dispositivo) antes de virar para
-        /// o roteamento principal. Pontos colineares são fundidos para que stub +
-        /// subida virem um único conduíte (sem fitting impossível no meio).
+        /// sai do conector na direção do seu eixo snapado para FORA do dispositivo
+        /// (lateral, para cima ou para baixo — o que a família definir; nunca para
+        /// dentro) antes de virar para o roteamento principal. Pontos colineares são
+        /// fundidos para que stub + trecho virem um único conduíte (sem fitting
+        /// impossível no meio).
         /// </summary>
         private static readonly double MergeTolFeet = UnitUtils.ConvertToInternalUnits(0.04, UnitTypeId.Meters); // ~4 cm
 
