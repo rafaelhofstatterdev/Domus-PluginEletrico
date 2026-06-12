@@ -28,8 +28,14 @@ namespace DmEletrico.Core.Circuits
             foreach (var id in deviceIds)
             {
                 var e = doc.GetElement(id);
-                e?.LookupParameter(DmParameters.NumeroCircuito)?.Set(numero);
-                e?.LookupParameter(DmParameters.Quadro)?.Set(panel.Name);
+                if (e == null) continue;
+                e.LookupParameter(DmParameters.NumeroCircuito)?.Set(numero);
+                e.LookupParameter(DmParameters.Quadro)?.Set(panel.Name);
+
+                // Propaga para os parâmetros nativos da família (aparece no Revit).
+                Core.ParamPropagation.SetTexto(e, numero, new[] { "circuito" }, new[] { "tipo", "dm_" });
+                Core.ParamPropagation.SetTexto(e, panel.Name, new[] { "quadro" }, new string[0]);
+                Core.ParamPropagation.SetTexto(e, panel.Name, new[] { "painel" }, new string[0]);
             }
             tx.Commit();
             return numero;

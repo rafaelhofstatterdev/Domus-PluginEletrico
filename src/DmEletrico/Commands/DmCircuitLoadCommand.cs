@@ -24,6 +24,8 @@ namespace DmEletrico.Commands
             BuiltInCategory.OST_ElectricalEquipment
         };
 
+        private static readonly string[] NenhumExcluir = System.Array.Empty<string>();
+
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
             var dispositivos = DispositivosSelecionados(uiDoc, doc);
@@ -53,6 +55,8 @@ namespace DmEletrico.Commands
 
                     // Propaga para os parâmetros nativos/da família.
                     PropagarParaFamilia(e, vm.Potencia, vm.TensaoOperacao);
+                    ParamPropagation.SetInteiro(e, vm.NumeroPolos, new[] { "polo" }, NenhumExcluir);
+                    ParamPropagation.SetTexto(e, vm.TipoCircuito, new[] { "tipo" }, new[] { "ifc", "ponto", "parte" });
                 }
                 tx.Commit();
             }

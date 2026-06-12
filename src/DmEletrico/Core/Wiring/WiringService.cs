@@ -28,15 +28,22 @@ namespace DmEletrico.Core.Wiring
     /// </summary>
     public static class WiringService
     {
-        /// <summary>Contagem de condutores de um circuito conforme a configuração.</summary>
-        public static ContagemFios Contagem(int poles, bool temIluminacao, DmWiringSettings cfg)
+        /// <summary>Contagem de condutores conforme o TIPO do circuito (regras NBR + config).</summary>
+        public static ContagemFios ContagemPorTipo(int poles, string tipo, DmWiringSettings cfg)
         {
             poles = Math.Max(1, Math.Min(3, poles));
             var neutros = poles >= 3 ? (cfg.ForcarNeutroTrifasico ? 1 : 0) : 1;
-            var terras = 1; // sempre há terra; ForcarTerraIluminacao garante p/ iluminação
-            if (cfg.ForcarTerraIluminacao && temIluminacao) terras = Math.Max(terras, 1);
+
+            var ilum = (tipo ?? "").ToLowerInvariant().Contains("ilumin");
+            // TUG/TUE sempre com terra; iluminação só se forçado.
+            var terras = ilum ? (cfg.ForcarTerraIluminacao ? 1 : 0) : 1;
+
             return new ContagemFios { Fases = poles, Neutros = neutros, Terras = terras, Retornos = 0 };
         }
+
+        /// <summary>Contagem por flag de iluminação (compatibilidade).</summary>
+        public static ContagemFios Contagem(int poles, bool temIluminacao, DmWiringSettings cfg)
+            => ContagemPorTipo(poles, temIluminacao ? "Iluminação" : "TUG", cfg);
 
         /// <summary>
         /// Recalcula e grava os parâmetros de fiação nos conduítes indicados, segundo

@@ -42,8 +42,9 @@ namespace DmEletrico.Commands
                 return Result.Cancelled;
             }
 
-            // Recalcula os condutores conforme a configuração (regras de neutro/terra).
-            WiringService.AplicarFiacao(doc, ids, cfg);
+            // Analisa a topologia (árvore no QD) e grava, em cada conduíte, os
+            // condutores de TODOS os circuitos que passam por ele (carga a jusante).
+            WiringTopology.Analisar(doc, cfg);
 
             // Anota, ocultando as bitolas configuradas como ocultas.
             bool Incluir(Element c)

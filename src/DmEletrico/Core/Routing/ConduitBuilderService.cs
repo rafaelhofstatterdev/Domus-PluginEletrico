@@ -203,6 +203,13 @@ namespace DmEletrico.Core.Routing
             AplicarParametros(conduits, r, potenciaVa, diametroMm, nCondutores, poles,
                 chave, elemB.Id.ToString(), circuitoNumero);
 
+            // Pontas da aresta física (para a análise de topologia da fiação).
+            foreach (var c in conduits)
+            {
+                SetString(c, DmParameters.NoA, elemA.Id.ToString());
+                SetString(c, DmParameters.NoB, elemB.Id.ToString());
+            }
+
             foreach (var c in conduits)
                 metas.Add(new ConduitMeta
                 {
@@ -261,7 +268,12 @@ namespace DmEletrico.Core.Routing
                 CriarCurvas(doc, conduits, report);
                 ConectarPontas(conduits, conA, conB, report);
 
-                foreach (var c in conduits) SetDouble(c, DmParameters.DiametroNominal, diamFeet);
+                foreach (var c in conduits)
+                {
+                    SetDouble(c, DmParameters.DiametroNominal, diamFeet);
+                    SetString(c, DmParameters.NoA, a.Id.ToString());
+                    SetString(c, DmParameters.NoB, b.Id.ToString());
+                }
             }
 
             return report;
