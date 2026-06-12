@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Electrical;
 using DmEletrico.Core;
+using DmEletrico.Core.Circuits;
 
 namespace DmEletrico.UI.Circuits
 {
     public sealed class CircuitRow
     {
-        public ElementId SystemId { get; set; } = ElementId.InvalidElementId;
+        public List<ElementId> DeviceIds { get; set; } = new();
         public string Numero { get; set; } = "";
         public string Painel { get; set; } = "";
         public string Fase { get; set; } = "";
@@ -18,8 +18,8 @@ namespace DmEletrico.UI.Circuits
     }
 
     /// <summary>
-    /// Gerenciador de circuitos (requisito 3). Lista os ElectricalSystem do modelo
-    /// com QDC, número, fase e carga, para reorganização.
+    /// Gerenciador de circuitos (requisito 3). Lista os circuitos lógicos
+    /// (Dm_Quadro + Dm_NumeroCircuito) com QDC, fase e carga, para reorganização.
     /// </summary>
     public sealed class DmCircuitManagerViewModel
     {
@@ -40,29 +40,25 @@ namespace DmEletrico.UI.Circuits
 
         private static IEnumerable<CircuitRow> Carregar(Document doc)
         {
-            var sistemas = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .ToList();
-
-            foreach (var s in sistemas)
+            foreach (var c in LogicalCircuits.All(doc).OrderBy(c => c.Quadro).ThenBy(c => Num(c.Numero)))
             {
-                var fase = s.Elements.Cast<Element>()
+                var fase = c.Dispositivos
                     .Select(e => e.LookupParameter(DmParameters.Fase)?.AsString())
                     .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "—";
 
-                var carga = s.Elements.Cast<Element>()
-                    .Sum(e => e.LookupParameter(DmParameters.Potencia)?.AsDouble() ?? 0);
+                var carga = c.Dispositivos.Sum(e => e.LookupParameter(DmParameters.Potencia)?.AsDouble() ?? 0);
 
                 yield return new CircuitRow
                 {
-                    SystemId = s.Id,
-                    Numero = string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber,
-                    Painel = s.BaseEquipment?.Name ?? "(sem QDC)",
+                    DeviceIds = c.Dispositivos.Select(e => e.Id).ToList(),
+                    Numero = string.IsNullOrWhiteSpace(c.Numero) ? "?" : c.Numero,
+                    Painel = string.IsNullOrEmpty(c.Quadro) ? "(sem QDC)" : c.Quadro,
                     Fase = fase,
                     Carga = carga
                 };
             }
         }
+
+        private static int Num(string s) => int.TryParse(s, out var n) ? n : 0;
     }
 }

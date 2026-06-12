@@ -1,42 +1,30 @@
 using System.Linq;
 using System.Text;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Electrical;
 using Autodesk.Revit.UI;
+using DmEletrico.Core;
+using DmEletrico.Core.Circuits;
 
 namespace DmEletrico.Commands
 {
     /// <summary>
-    /// Requisito 6 — Rastreador de Dispositivos Desconectados. Varre o modelo,
-    /// identifica famílias elétricas sem ElectricalSystem atribuído e lista os
-    /// elementos órfãos com categoria e localização.
+    /// Requisito 6 — Rastreador de Dispositivos Desconectados. Identifica
+    /// dispositivos sem número de circuito (Dm_NumeroCircuito) e circuitos lógicos
+    /// sem QDC atribuído (Dm_Quadro vazio).
     /// </summary>
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public sealed class DmCheckDisconnectedCommand : DmCommandBase
     {
-        private static readonly BuiltInCategory[] Categorias =
-        {
-            BuiltInCategory.OST_ElectricalFixtures,
-            BuiltInCategory.OST_LightingFixtures,
-            BuiltInCategory.OST_ElectricalEquipment
-        };
-
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
-            var filter = new ElementMulticategoryFilter(Categorias);
-            var elementos = new FilteredElementCollector(doc)
-                .WherePasses(filter)
-                .WhereElementIsNotElementType()
-                .OfClass(typeof(FamilyInstance))
-                .Cast<FamilyInstance>();
+            var dispositivos = LogicalCircuits.DispositivosEletricos(doc);
 
-            var semCircuito = elementos.Where(SemCircuito).ToList();
+            var semCircuito = dispositivos
+                .Where(e => string.IsNullOrWhiteSpace(e.LookupParameter(DmParameters.NumeroCircuito)?.AsString()))
+                .ToList();
 
-            // Circuitos sem QDC atribuído.
-            var circuitosSemQdc = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .Where(s => s.BaseEquipment == null)
+            var circuitosSemQdc = LogicalCircuits.All(doc)
+                .Where(c => string.IsNullOrEmpty(c.Quadro) || c.Painel == null)
                 .ToList();
 
             if (semCircuito.Count == 0 && circuitosSemQdc.Count == 0)
@@ -57,21 +45,11 @@ namespace DmEletrico.Commands
             if (semCircuito.Count > 40) sb.AppendLine($"… e mais {semCircuito.Count - 40}.");
 
             sb.AppendLine($"\nCircuitos SEM QDC atribuído: {circuitosSemQdc.Count}");
-            foreach (var s in circuitosSemQdc.Take(40))
-                sb.AppendLine($"• [{s.Id}] Circuito {(string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber)} — {s.Name}");
-            if (circuitosSemQdc.Count > 40) sb.AppendLine($"… e mais {circuitosSemQdc.Count - 40}.");
+            foreach (var c in circuitosSemQdc.Take(40))
+                sb.AppendLine($"• Circuito {c.Numero} — {c.Dispositivos.Count} dispositivo(s)");
 
             TaskDialog.Show("DmEletrico — Desconectados", sb.ToString());
             return Result.Succeeded;
-        }
-
-        private static bool SemCircuito(FamilyInstance fi)
-        {
-            var mep = fi.MEPModel;
-            if (mep == null) return true;
-
-            var systems = mep.GetElectricalSystems();
-            return systems == null || systems.Count == 0;
         }
     }
 }

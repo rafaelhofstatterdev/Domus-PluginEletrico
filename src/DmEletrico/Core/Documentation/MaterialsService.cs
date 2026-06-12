@@ -91,14 +91,10 @@ namespace DmEletrico.Core.Documentation
 
         private static void CalcularDisjuntores(Document doc, MaterialsReport report)
         {
-            var sistemas = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>();
-
             var porDisj = new Dictionary<double, int>();
-            foreach (var s in sistemas)
+            foreach (var c in Circuits.LogicalCircuits.All(doc))
             {
-                var disj = s.Elements.Cast<Element>()
+                var disj = c.Dispositivos
                     .Select(e => e.LookupParameter(DmParameters.Disjuntor)?.AsDouble() ?? 0)
                     .FirstOrDefault(v => v > 0);
                 if (disj <= 0) continue;

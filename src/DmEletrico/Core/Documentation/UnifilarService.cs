@@ -75,12 +75,6 @@ namespace DmEletrico.Core.Documentation
 
             var textTypeId = doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType);
 
-            var sistemas = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .Where(s => s.BaseEquipment != null)
-                .ToList();
-
             var paineis = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_ElectricalEquipment)
                 .WhereElementIsNotElementType()
@@ -88,12 +82,14 @@ namespace DmEletrico.Core.Documentation
                 .Cast<FamilyInstance>()
                 .ToList();
 
+            var todos = Circuits.LogicalCircuits.All(doc);
+
             using var tx = new Transaction(doc, "DmEletrico — Diagrama Unifilar");
             tx.Start();
 
             foreach (var painel in paineis)
             {
-                var circuitos = sistemas.Where(s => s.BaseEquipment!.Id == painel.Id).ToList();
+                var circuitos = todos.Where(c => c.Quadro == painel.Name).ToList();
                 if (circuitos.Count == 0) continue;
 
                 var view = ViewDrafting.Create(doc, vftId);
@@ -109,7 +105,7 @@ namespace DmEletrico.Core.Documentation
 
         private void DesenharQuadro(
             Document doc, ViewDrafting view, ElementId textTypeId,
-            FamilyInstance painel, List<ElectricalSystem> circuitos, DmProjectSettings settings)
+            FamilyInstance painel, List<Circuits.LogicalCircuit> circuitos, DmProjectSettings settings)
         {
             // Cabeçalho + disjuntor geral.
             Texto(doc, view, textTypeId, new XYZ(-RamalLen, Passo, 0), $"QDC: {painel.Name}");
@@ -130,18 +126,18 @@ namespace DmEletrico.Core.Documentation
                 Linha(doc, view, new XYZ(0, y, 0), new XYZ(RamalLen, y, 0));
 
                 var (secao, disjuntor) = Dimensionar(s, settings);
-                var numero = string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber;
+                var numero = string.IsNullOrWhiteSpace(s.Numero) ? "?" : s.Numero;
                 var texto = string.Format(CultureInfo.CurrentCulture,
-                    "Circ {0} | {1:F1} mm² | Disj {2:F0} A | {3}",
-                    numero, secao, disjuntor, s.Name);
+                    "Circ {0} | {1:F1} mm² | Disj {2:F0} A",
+                    numero, secao, disjuntor);
 
                 Texto(doc, view, textTypeId, new XYZ(RamalLen + TextoOffset, y, 0), texto);
             }
         }
 
-        private (double secao, double disjuntor) Dimensionar(ElectricalSystem s, DmProjectSettings settings)
+        private (double secao, double disjuntor) Dimensionar(Circuits.LogicalCircuit s, DmProjectSettings settings)
         {
-            var potVa = s.Elements.Cast<Element>().Sum(e => ReadDouble(e, DmParameters.Potencia));
+            var potVa = s.Dispositivos.Sum(e => ReadDouble(e, DmParameters.Potencia));
             var r = _calc.Calcular(new TrechoInput
             {
                 PotenciaAparenteVa = potVa,

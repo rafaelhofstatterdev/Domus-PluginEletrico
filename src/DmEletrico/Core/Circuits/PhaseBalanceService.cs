@@ -41,42 +41,35 @@ namespace DmEletrico.Core.Circuits
         {
             var report = new PhaseBalanceReport();
 
-            var sistemas = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .Where(s => s.BaseEquipment != null)
-                .ToList();
-
-            var porQuadro = sistemas.GroupBy(s => s.BaseEquipment!.Id);
+            var porQuadro = LogicalCircuits.All(doc).GroupBy(c => c.Quadro);
 
             using var tx = new Transaction(doc, "DmEletrico — Balanceamento de Fases");
             tx.Start();
 
             foreach (var grupo in porQuadro)
             {
-                var painel = doc.GetElement(grupo.Key);
                 var totais = new double[3];
 
                 var circuitos = grupo
-                    .Select(s => new { System = s, Carga = CargaDoCircuito(s) })
+                    .Select(c => new { Circuito = c, Carga = CargaDoCircuito(c) })
                     .OrderByDescending(x => x.Carga)
                     .ToList();
 
                 foreach (var c in circuitos)
                 {
-                    var polos = Clamp(LerPolos(c.System), 1, 3);
+                    var polos = Clamp(LerPolos(c.Circuito), 1, 3);
                     var escolhidas = FasesMenosCarregadas(totais, polos);
                     var parcela = polos > 0 ? c.Carga / polos : c.Carga;
 
                     foreach (var idx in escolhidas) totais[idx] += parcela;
 
                     var label = new string(escolhidas.Select(i => Fases[i]).ToArray());
-                    GravarFase(c.System, label);
+                    GravarFase(c.Circuito, label);
                     report.CircuitosBalanceados++;
                 }
 
                 report.Quadros.Add(
-                    $"{painel?.Name ?? grupo.Key.ToString()}: " +
+                    $"{(string.IsNullOrEmpty(grupo.Key) ? "(sem QDC)" : grupo.Key)}: " +
                     $"A={totais[0]:F0} VA, B={totais[1]:F0} VA, C={totais[2]:F0} VA " +
                     $"(desbalanço {Desbalanco(totais):F0} VA)");
             }
@@ -94,12 +87,12 @@ namespace DmEletrico.Core.Circuits
 
         private static double Desbalanco(double[] totais) => totais.Max() - totais.Min();
 
-        private static double CargaDoCircuito(ElectricalSystem s)
-            => s.Elements.Cast<Element>().Sum(e => ReadDouble(e, DmParameters.Potencia));
+        private static double CargaDoCircuito(LogicalCircuit c)
+            => c.Dispositivos.Sum(e => ReadDouble(e, DmParameters.Potencia));
 
-        private static int LerPolos(ElectricalSystem s)
+        private static int LerPolos(LogicalCircuit c)
         {
-            foreach (Element e in s.Elements)
+            foreach (var e in c.Dispositivos)
             {
                 var v = (int)ReadDouble(e, DmParameters.NumeroPolos, fallback: 0);
                 if (v > 0) return v;
@@ -107,9 +100,9 @@ namespace DmEletrico.Core.Circuits
             return 1;
         }
 
-        private static void GravarFase(ElectricalSystem s, string label)
+        private static void GravarFase(LogicalCircuit c, string label)
         {
-            foreach (Element e in s.Elements)
+            foreach (var e in c.Dispositivos)
                 e.LookupParameter(DmParameters.Fase)?.Set(label);
         }
 

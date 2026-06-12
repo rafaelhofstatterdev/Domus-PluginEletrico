@@ -4,6 +4,7 @@ using System.Text;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
 using DmEletrico.Core;
+using DmEletrico.Core.Circuits;
 
 namespace DmEletrico.Core.Routing
 {
@@ -74,18 +75,16 @@ namespace DmEletrico.Core.Routing
                 .Where(c => !string.IsNullOrWhiteSpace(c.LookupParameter(DmParameters.CircuitoOrigemId)?.AsString()))
                 .ToList();
 
-            // Agrupa conduítes por circuito de origem.
-            var porCircuito = conduites
-                .GroupBy(c => c.LookupParameter(DmParameters.CircuitoOrigemId)!.AsString());
+            // Agrupa conduítes por circuito lógico de origem (chave Quadro|Numero).
+            var porCircuito = conduites.GroupBy(c => c.LookupParameter(DmParameters.CircuitoOrigemId)!.AsString());
+            var circuitos = LogicalCircuits.All(doc).ToDictionary(c => c.Quadro + "|" + c.Numero, c => c);
 
-            var afetados = new List<ElectricalSystem>();
+            var afetados = new List<LogicalCircuit>();
             var idsParaRemover = new List<ElementId>();
 
             foreach (var grupo in porCircuito)
             {
-                if (!long.TryParse(grupo.Key, out var raw)) continue;
-                var system = doc.GetElement(new ElementId(raw)) as ElectricalSystem;
-                if (system == null) continue;
+                if (!circuitos.TryGetValue(grupo.Key, out var circuito)) continue;
 
                 var pontas = grupo
                     .Select(c => (c.Location as LocationCurve)?.Curve)
@@ -93,15 +92,14 @@ namespace DmEletrico.Core.Routing
                     .SelectMany(cv => new[] { cv!.GetEndPoint(0), cv.GetEndPoint(1) })
                     .ToList();
 
-                var moveu = system.Elements.Cast<Element>()
-                    .Where(e => e.Id != system.BaseEquipment?.Id)
+                var moveu = circuito.Dispositivos
                     .Select(e => (e.Location as LocationPoint)?.Point)
                     .Where(p => p != null)
                     .Any(p => !pontas.Any(pt => pt.DistanceTo(p) <= MoveTolFeet));
 
                 if (moveu)
                 {
-                    afetados.Add(system);
+                    afetados.Add(circuito);
                     idsParaRemover.AddRange(grupo.Select(c => c.Id));
                 }
             }
@@ -111,7 +109,7 @@ namespace DmEletrico.Core.Routing
             foreach (var id in idsParaRemover)
                 if (doc.GetElement(id) != null) doc.Delete(id);
 
-            var rebuild = new ConduitBuilderService().BuildForSystems(doc, settings, afetados);
+            var rebuild = new ConduitBuilderService().BuildForCircuits(doc, settings, afetados);
             report.CircuitosReroteados = afetados.Count;
             report.Avisos.AddRange(rebuild.Avisos);
         }

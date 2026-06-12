@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Electrical;
+using DmEletrico.Core.Circuits;
 
 namespace DmEletrico.UI.DocCenter
 {
@@ -39,10 +39,7 @@ namespace DmEletrico.UI.DocCenter
 
         private static IEnumerable<QuadroVm> Carregar(Document doc)
         {
-            var sistemas = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElectricalSystem))
-                .Cast<ElectricalSystem>()
-                .ToList();
+            var circuitos = LogicalCircuits.All(doc);
 
             var paineis = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_ElectricalEquipment)
@@ -53,19 +50,14 @@ namespace DmEletrico.UI.DocCenter
 
             foreach (var painel in paineis)
             {
-                var circuitos = sistemas
-                    .Where(s => s.BaseEquipment != null && s.BaseEquipment.Id == painel.Id)
-                    .Select(s => new CircuitoVm(DescreverCircuito(s)))
+                var lista = circuitos
+                    .Where(c => c.Quadro == painel.Name)
+                    .OrderBy(c => int.TryParse(c.Numero, out var n) ? n : 0)
+                    .Select(c => new CircuitoVm($"Circuito {c.Numero} — {c.Dispositivos.Count} dispositivo(s)"))
                     .ToList();
 
-                yield return new QuadroVm($"{painel.Name}  (Id {painel.Id})", circuitos);
+                yield return new QuadroVm($"{painel.Name}  (Id {painel.Id})", lista);
             }
-        }
-
-        private static string DescreverCircuito(ElectricalSystem s)
-        {
-            var numero = string.IsNullOrWhiteSpace(s.CircuitNumber) ? "?" : s.CircuitNumber;
-            return $"Circuito {numero} — {s.Name}";
         }
     }
 }
