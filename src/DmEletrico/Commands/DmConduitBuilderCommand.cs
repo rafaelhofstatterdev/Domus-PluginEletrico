@@ -83,6 +83,7 @@ namespace DmEletrico.Commands
             using (var tx = new Transaction(doc, "DmEletrico — Construir Conduítes"))
             {
                 tx.Start();
+                Core.WarningSwallower.Apply(tx);
                 report = service.Build(doc, settings, options);
                 tx.Commit();
             }

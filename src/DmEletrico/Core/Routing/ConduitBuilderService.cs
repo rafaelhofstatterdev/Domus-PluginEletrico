@@ -131,7 +131,7 @@ namespace DmEletrico.Core.Routing
                 var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(ambiente), UnitTypeId.Meters);
                 var spineZ = levelElev + offsetFeet;
 
-                var caminho = EscolherCaminho(devPt, panPt, spineZ, options, settings);
+                var caminho = CaminhoComStubs(devCon, devPt, panCon, panPt, spineZ, options, settings);
                 var trechoLenM = UnitUtils.ConvertFromInternalUnits(OrthogonalRouter.Comprimento(caminho), UnitTypeId.Meters);
 
                 var r = _calc.Calcular(new TrechoInput
@@ -193,7 +193,7 @@ namespace DmEletrico.Core.Routing
                 var ptA = conA?.Origin ?? Origem(a);
                 var ptB = conB?.Origin ?? Origem(b);
 
-                var caminho = EscolherCaminho(ptA, ptB, spineZ, options, settings);
+                var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options, settings);
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
                 CriarCurvas(doc, conduits, report);
                 ConectarPontas(conduits, conA, conB, report);
@@ -319,6 +319,49 @@ namespace DmEletrico.Core.Routing
                 SetDouble(c, DmParameters.BitolaFase, r.SecaoAdotadaMm2);
                 SetDouble(c, DmParameters.BitolaTerra, r.SecaoAdotadaMm2);
             }
+        }
+
+        /// <summary>
+        /// Monta o caminho com "stubs" alinhados ao eixo de cada conector: um trecho
+        /// curto sai do conector na direção dele (CoordinateSystem.BasisZ) antes de
+        /// virar para o roteamento principal. Isso permite que o ConnectTo encaixe
+        /// sem o erro "direção oposta / sem espaço".
+        /// </summary>
+        private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
+        {
+            var stub = UnitUtils.ConvertToInternalUnits(0.20, UnitTypeId.Meters); // 20 cm
+
+            var startMid = ptA;
+            var endMid = ptB;
+            if (conA != null) startMid = conA.Origin + DirecaoStub(conA, ptB) * stub;
+            if (conB != null) endMid = conB.Origin + DirecaoStub(conB, ptA) * stub;
+
+            var middle = EscolherCaminho(startMid, endMid, spineZ, options, settings);
+
+            var pts = new List<XYZ>();
+            if (conA != null) pts.Add(conA.Origin);
+            foreach (var p in middle) pts.Add(p);
+            if (conB != null) pts.Add(conB.Origin);
+            return Dedupe(pts);
+        }
+
+        /// <summary>Direção do stub: eixo do conector, apontando para o alvo.</summary>
+        private static XYZ DirecaoStub(Connector con, XYZ alvo)
+        {
+            var d = con.CoordinateSystem.BasisZ;
+            if (d.IsZeroLength()) return (alvo - con.Origin).Normalize();
+            d = d.Normalize();
+            if ((alvo - con.Origin).DotProduct(d) < 0) d = -d;
+            return d;
+        }
+
+        private static IList<XYZ> Dedupe(IList<XYZ> pts)
+        {
+            var result = new List<XYZ>();
+            foreach (var p in pts)
+                if (result.Count == 0 || result[result.Count - 1].DistanceTo(p) > 1e-6)
+                    result.Add(p);
+            return result;
         }
 
         private static IList<XYZ> EscolherCaminho(XYZ a, XYZ b, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)

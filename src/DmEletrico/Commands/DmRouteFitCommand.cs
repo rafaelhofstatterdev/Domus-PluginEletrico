@@ -22,6 +22,7 @@ namespace DmEletrico.Commands
             using (var tx = new Transaction(doc, "DmEletrico — Ajuste de Rotas"))
             {
                 tx.Start();
+                Core.WarningSwallower.Apply(tx);
                 report = service.Fit(doc, settings);
                 tx.Commit();
             }
