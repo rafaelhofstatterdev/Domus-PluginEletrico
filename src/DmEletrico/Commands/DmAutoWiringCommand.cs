@@ -23,28 +23,18 @@ namespace DmEletrico.Commands
             var view = uiDoc.ActiveView;
             var cfg = DmWiringSettings.Read(doc);
 
-            // Conduítes selecionados; se nada selecionado, todos da vista.
-            var brutos = uiDoc.Selection.GetElementIds().Where(id => doc.GetElement(id) is Conduit).ToList();
-            if (brutos.Count == 0)
-                brutos = new FilteredElementCollector(doc, view.Id)
-                    .OfCategory(BuiltInCategory.OST_Conduit)
-                    .WhereElementIsNotElementType()
-                    .ToElementIds().ToList();
-
-            if (brutos.Count == 0)
-            {
-                TaskDialog.Show("DmEletrico", "Nenhum conduíte selecionado nem visível nesta vista.");
-                return Result.Cancelled;
-            }
-
             // Analisa a topologia (árvore no QD) e grava, em cada conduíte, os
             // condutores de TODOS os circuitos que passam por ele (carga a jusante).
             // É a análise — não o parâmetro CircuitoOrigemId — que define os circuitos.
             var topo = WiringTopology.Analisar(doc, cfg);
 
-            // Anota só os conduítes que, após a análise, têm circuito passando.
-            var ids = brutos.Where(id =>
-                !string.IsNullOrWhiteSpace(doc.GetElement(id)?.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString()))
+            // Anota TODOS os conduítes da vista que têm circuito (não depende da
+            // seleção — assim nenhum trecho do circuito fica sem anotação).
+            var ids = new FilteredElementCollector(doc, view.Id)
+                .OfCategory(BuiltInCategory.OST_Conduit)
+                .WhereElementIsNotElementType()
+                .Where(c => !string.IsNullOrWhiteSpace(c.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString()))
+                .Select(c => c.Id)
                 .ToList();
 
             if (ids.Count == 0)

@@ -57,18 +57,49 @@ namespace DmEletrico.Core.Circuits
             try
             {
                 var sys = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
-                try { sys.SelectPanel(panel); }
-                catch (System.Exception ex)
+
+                if (TentarSelecionarPainel(doc, sys, panel))
                 {
-                    return $"Circuito nativo criado, mas não foi atribuído ao QD '{panel.Name}': {ex.Message}";
+                    doc.Regenerate();
+                    return $"Circuito nativo do Revit criado e atribuído a '{panel.Name}' (nº {sys.CircuitNumber}).";
                 }
-                doc.Regenerate();
-                return $"Circuito nativo do Revit criado e atribuído a '{panel.Name}' (nº {sys.CircuitNumber}).";
+
+                // Falhou por incompatibilidade: garante um Sistema de Distribuição
+                // no QD e tenta de novo (causa típica de 'panel and circuit do not match').
+                if (GarantirSistemaDistribuicao(doc, panel) && TentarSelecionarPainel(doc, sys, panel))
+                {
+                    doc.Regenerate();
+                    return $"Circuito nativo criado, Sistema de Distribuição atribuído ao QD e circuito ligado a '{panel.Name}'.";
+                }
+
+                return $"Circuito nativo criado, mas o QD '{panel.Name}' não aceitou (verifique o Sistema de Distribuição/tensão do quadro).";
             }
             catch (System.Exception ex)
             {
                 return "Circuito nativo NÃO criado pelo Revit: " + ex.Message;
             }
+        }
+
+        private static bool TentarSelecionarPainel(Document doc, ElectricalSystem sys, FamilyInstance panel)
+        {
+            try { sys.SelectPanel(panel); return true; }
+            catch { return false; }
+        }
+
+        /// <summary>Atribui um Sistema de Distribuição ao QD se ele não tiver um.</summary>
+        private static bool GarantirSistemaDistribuicao(Document doc, FamilyInstance panel)
+        {
+            var p = panel.get_Parameter(BuiltInParameter.RBS_FAMILY_CONTENT_DISTRIBUTION_SYSTEM);
+            if (p == null || p.IsReadOnly) return false;
+            if (p.AsElementId() != null && p.AsElementId() != ElementId.InvalidElementId) return true; // já tem
+
+            var dist = new FilteredElementCollector(doc)
+                .OfClass(typeof(DistributionSysType))
+                .FirstElementId();
+            if (dist == ElementId.InvalidElementId) return false;
+
+            try { p.Set(dist); doc.Regenerate(); return true; }
+            catch { return false; }
         }
 
         private static bool TemConectorPowerLivre(Element? e)
