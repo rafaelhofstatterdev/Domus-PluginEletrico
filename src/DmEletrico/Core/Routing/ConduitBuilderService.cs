@@ -359,9 +359,11 @@ namespace DmEletrico.Core.Routing
         }
 
         /// <summary>
-        /// Conecta apenas se a geometria permitir: conectores coincidentes e com
-        /// eixos anti-paralelos (um de frente para o outro). Caso contrário NÃO
-        /// tenta — evita o erro "conduíte na direção oposta / sem espaço".
+        /// Conecta SOMENTE quando a geometria é perfeita: conectores coincidentes
+        /// (≤3 mm) e exatamente anti-paralelos (dot ≤ -0,95). Conexão "quase válida"
+        /// é o que faz o Revit tentar mover o conduíte e falhar com "direção oposta /
+        /// sem espaço" — aqui ela simplesmente não é tentada (a geometria fica
+        /// encostada no conector, sem erro).
         /// </summary>
         private static bool TentarConectar(Conduit conduit, Connector? alvo)
         {
@@ -370,17 +372,14 @@ namespace DmEletrico.Core.Routing
             if (cc == null || cc.IsConnected) return false;
 
             // Coincidência de origem.
-            if (cc.Origin.DistanceTo(alvo.Origin) > UnitUtils.ConvertToInternalUnits(0.005, UnitTypeId.Meters))
+            if (cc.Origin.DistanceTo(alvo.Origin) > UnitUtils.ConvertToInternalUnits(0.003, UnitTypeId.Meters))
                 return false;
 
-            // Anti-paralelismo (os conectores precisam se encarar). O conduíte é
-            // criado ao longo do eixo exato do conector, então isto é ~-1.0; a folga
-            // cobre apenas desvio numérico.
+            // Anti-paralelismo exato (os conectores precisam se encarar).
             var da = alvo.CoordinateSystem.BasisZ;
             var dc = cc.CoordinateSystem.BasisZ;
-            if (!da.IsZeroLength() && !dc.IsZeroLength() &&
-                da.Normalize().DotProduct(dc.Normalize()) > -0.6)
-                return false;
+            if (da.IsZeroLength() || dc.IsZeroLength()) return false;
+            if (da.Normalize().DotProduct(dc.Normalize()) > -0.95) return false;
 
             try { cc.ConnectTo(alvo); return true; }
             catch { return false; }
@@ -619,6 +618,11 @@ namespace DmEletrico.Core.Routing
 
                 var eixo = AxisOut(c); // eixo EXATO apontando para fora
 
+                // SÓ conectores estritamente axiais (±X/±Y/±Z): as caixas têm
+                // conectores em todas as direções axiais; um diagonal geraria
+                // emendas que não fecham e conexões que o Revit recusa.
+                if (Axialidade(eixo) < 0.9) continue;
+
                 // Descarta conectores cujo eixo aponta para dentro do dispositivo.
                 var paraFora = c.Origin - centro;
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
@@ -626,11 +630,11 @@ namespace DmEletrico.Core.Routing
                 var paraAim = aim - c.Origin;
                 var alinhamento = paraAim.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAim.Normalize());
 
-                // Menor score = melhor. Forte preferência por conectores AXIAIS (para
-                // o stub + rota fecharem a 90°) e que apontem para o alvo da rota.
-                var score = c.Origin.DistanceTo(aim)
-                          - alinhamento * 5.0
-                          - Axialidade(eixo) * 12.0;
+                // Alinhamento com o PRIMEIRO movimento da rota DOMINA o score:
+                // é ele que impede pegar o conector do topo quando a rota corre na
+                // horizontal (loop por cima) ou o lateral quando a rota desce de
+                // cima (conexão pelo lado).
+                var score = c.Origin.DistanceTo(aim) * 0.1 - alinhamento * 10.0;
                 if (score < bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
