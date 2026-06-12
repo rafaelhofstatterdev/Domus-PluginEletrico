@@ -245,6 +245,8 @@ namespace DmEletrico.Core.Routing
 
                 var spineZ = SpineElevation(conA, ptA, conB, ptB);
 
+                report.Avisos.Add($"Trecho {i + 1}: conector A {DescreverEixo(conA)} | conector B {DescreverEixo(conB)}");
+
                 var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options, settings);
 
                 var diamConectorFeet = DiametroConectorFeet(conA, conB);
@@ -501,6 +503,17 @@ namespace DmEletrico.Core.Routing
         /// <summary>Quão alinhado a um eixo (±X/±Y/±Z) está o vetor: 1 = axial, ~0,71 = 45°.</summary>
         private static double Axialidade(XYZ v)
             => Math.Max(Math.Abs(v.X), Math.Max(Math.Abs(v.Y), Math.Abs(v.Z)));
+
+        /// <summary>Descrição curta do eixo do conector para diagnóstico no relatório.</summary>
+        private static string DescreverEixo(Connector? c)
+        {
+            if (c == null) return "(nenhum livre)";
+            var d = AxisOut(c);
+            string dir = Math.Abs(d.Z) > 0.9 ? (d.Z > 0 ? "↑ cima" : "↓ baixo")
+                       : Axialidade(d) >= 0.9 ? "lateral axial"
+                       : "diagonal";
+            return $"{dir} ({d.X:F2}, {d.Y:F2}, {d.Z:F2})";
+        }
 
         /// <summary>True se a rota dobra ~180° na emenda do stub com o caminho do meio.</summary>
         private static bool Reverte(XYZ origem, XYZ stubEnd, IList<XYZ> middle, bool daPonta)
