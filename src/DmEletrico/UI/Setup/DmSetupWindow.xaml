@@ -36,16 +36,6 @@
         <TextBlock Text="Tipo de conduíte" />
         <ComboBox ItemsSource="{Binding TiposConduite}" SelectedItem="{Binding TipoConduite}" />
 
-        <TextBlock Text="Altura de roteamento padrão (m)" />
-        <TextBox Text="{Binding AlturaRoteamento, Converter={StaticResource Dbl}, UpdateSourceTrigger=LostFocus}" />
-
-        <TextBlock Text="Offsets por ambiente (m): laje / parede / contrapiso" />
-        <StackPanel Orientation="Horizontal">
-            <TextBox Width="120" Margin="0,0,8,0" Text="{Binding OffsetLaje, Converter={StaticResource Dbl}, UpdateSourceTrigger=LostFocus}" />
-            <TextBox Width="120" Margin="0,0,8,0" Text="{Binding OffsetParede, Converter={StaticResource Dbl}, UpdateSourceTrigger=LostFocus}" />
-            <TextBox Width="120" Text="{Binding OffsetContrapiso, Converter={StaticResource Dbl}, UpdateSourceTrigger=LostFocus}" />
-        </StackPanel>
-
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="Cancelar" Width="90" Margin="0,0,8,0" IsCancel="True" />
             <Button Content="Confirmar" Width="90" IsDefault="True" Click="OnConfirmar" />

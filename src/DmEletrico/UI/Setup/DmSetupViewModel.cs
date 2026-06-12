@@ -22,10 +22,6 @@ namespace DmEletrico.UI.Setup
         {
             _temperaturaAmbiente = settings.TemperaturaAmbiente;
             _tensaoNominal = settings.TensaoNominal;
-            _alturaRoteamento = settings.AlturaRoteamento;
-            _offsetLaje = settings.OffsetLaje;
-            _offsetParede = settings.OffsetParede;
-            _offsetContrapiso = settings.OffsetContrapiso;
             _metodo = settings.Metodo;
             _modo = settings.Modo;
 
@@ -54,18 +50,6 @@ namespace DmEletrico.UI.Setup
         private double _tensaoNominal;
         public double TensaoNominal { get => _tensaoNominal; set { _tensaoNominal = value; OnPropertyChanged(); } }
 
-        private double _alturaRoteamento;
-        public double AlturaRoteamento { get => _alturaRoteamento; set { _alturaRoteamento = value; OnPropertyChanged(); } }
-
-        private double _offsetLaje;
-        public double OffsetLaje { get => _offsetLaje; set { _offsetLaje = value; OnPropertyChanged(); } }
-
-        private double _offsetParede;
-        public double OffsetParede { get => _offsetParede; set { _offsetParede = value; OnPropertyChanged(); } }
-
-        private double _offsetContrapiso;
-        public double OffsetContrapiso { get => _offsetContrapiso; set { _offsetContrapiso = value; OnPropertyChanged(); } }
-
         private MetodoInstalacao _metodo;
         public MetodoInstalacao Metodo { get => _metodo; set { _metodo = value; OnPropertyChanged(); } }
 
@@ -79,10 +63,6 @@ namespace DmEletrico.UI.Setup
         {
             TemperaturaAmbiente = TemperaturaAmbiente,
             TensaoNominal = TensaoNominal,
-            AlturaRoteamento = AlturaRoteamento,
-            OffsetLaje = OffsetLaje,
-            OffsetParede = OffsetParede,
-            OffsetContrapiso = OffsetContrapiso,
             Metodo = Metodo,
             Modo = Modo,
             ConduitTypeId = TipoConduite?.Id ?? "",
