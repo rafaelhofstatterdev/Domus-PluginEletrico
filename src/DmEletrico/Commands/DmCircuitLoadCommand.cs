@@ -65,13 +65,14 @@ namespace DmEletrico.Commands
         /// <summary>
         /// Grava a potência/tensão também nos parâmetros da família que aparentam ser
         /// entradas de carga (ex.: "..._Potência Aparente", "..._Tensão"), pulando
-        /// fator de potência e potência ativa (calculados).
+        /// fator de potência e potência ativa (calculados). Parâmetros tipados do
+        /// Revit exigem conversão para unidades internas (senão 200 VA viram ~18,6).
         /// </summary>
         private static void PropagarParaFamilia(Element e, double potencia, double tensao)
         {
             foreach (Parameter p in e.Parameters)
             {
-                if (p.IsReadOnly) continue;
+                if (p.IsReadOnly || p.StorageType != StorageType.Double) continue;
                 var nome = p.Definition?.Name ?? "";
                 var low = nome.ToLowerInvariant();
                 if (low.StartsWith("dm_")) continue;
@@ -81,8 +82,23 @@ namespace DmEletrico.Commands
                                  && !low.Contains("fator") && !low.Contains("ativa");
                 var ehTensao = low.Contains("tensão") || low.Contains("tensao");
 
-                if (p.StorageType == StorageType.Double && ehPotencia) p.Set(potencia);
-                else if (p.StorageType == StorageType.Double && ehTensao) p.Set(tensao);
+                if (ehPotencia) p.Set(ParaInterno(p, potencia, UnitTypeId.VoltAmperes));
+                else if (ehTensao) p.Set(ParaInterno(p, tensao, UnitTypeId.Volts));
+            }
+        }
+
+        /// <summary>Converte o valor digitado para as unidades internas do parâmetro.</summary>
+        private static double ParaInterno(Parameter p, double valor, ForgeTypeId unidadePadrao)
+        {
+            try
+            {
+                var unit = p.GetUnitTypeId();
+                return UnitUtils.ConvertToInternalUnits(valor, unit);
+            }
+            catch
+            {
+                try { return UnitUtils.ConvertToInternalUnits(valor, unidadePadrao); }
+                catch { return valor; } // parâmetro sem unidade (Number)
             }
         }
 

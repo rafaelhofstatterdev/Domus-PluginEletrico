@@ -323,36 +323,59 @@ namespace DmEletrico.Core.Routing
 
         /// <summary>
         /// Monta o caminho com "stubs" alinhados ao eixo de cada conector: um trecho
-        /// curto sai do conector na direção dele (CoordinateSystem.BasisZ) antes de
-        /// virar para o roteamento principal. Isso permite que o ConnectTo encaixe
-        /// sem o erro "direção oposta / sem espaço".
+        /// sai do conector SEMPRE na direção para fora dele (+BasisZ — nunca
+        /// invertida, senão o conduíte entraria no dispositivo) antes de virar para
+        /// o roteamento principal. Pontos colineares são fundidos para que stub +
+        /// subida virem um único conduíte (sem fitting impossível no meio).
         /// </summary>
         private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
         {
-            var stub = UnitUtils.ConvertToInternalUnits(0.20, UnitTypeId.Meters); // 20 cm
+            var stub = UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters); // 30 cm
 
             var startMid = ptA;
             var endMid = ptB;
-            if (conA != null) startMid = conA.Origin + DirecaoStub(conA, ptB) * stub;
-            if (conB != null) endMid = conB.Origin + DirecaoStub(conB, ptA) * stub;
+            if (conA != null) startMid = conA.Origin + AxisOut(conA) * stub;
+            if (conB != null) endMid = conB.Origin + AxisOut(conB) * stub;
 
             var middle = EscolherCaminho(startMid, endMid, spineZ, options, settings);
 
+            // Se o caminho dobraria 180° logo após o stub (rota contra o eixo do
+            // conector), abandona o stub desse lado e parte direto do conector.
+            if (conA != null && Reverte(conA.Origin, startMid, middle, daPonta: true))
+            {
+                startMid = conA.Origin;
+                middle = EscolherCaminho(startMid, endMid, spineZ, options, settings);
+            }
+            if (conB != null && Reverte(conB.Origin, endMid, middle, daPonta: false))
+            {
+                endMid = conB.Origin;
+                middle = EscolherCaminho(startMid, endMid, spineZ, options, settings);
+            }
+
             var pts = new List<XYZ>();
-            if (conA != null) pts.Add(conA.Origin);
+            if (conA != null && startMid != conA.Origin) pts.Add(conA.Origin);
             foreach (var p in middle) pts.Add(p);
-            if (conB != null) pts.Add(conB.Origin);
-            return Dedupe(pts);
+            if (conB != null && endMid != conB.Origin) pts.Add(conB.Origin);
+            return SimplificarColineares(Dedupe(pts));
         }
 
-        /// <summary>Direção do stub: eixo do conector, apontando para o alvo.</summary>
-        private static XYZ DirecaoStub(Connector con, XYZ alvo)
+        /// <summary>Eixo do conector para FORA do dispositivo (nunca invertido).</summary>
+        private static XYZ AxisOut(Connector con)
         {
             var d = con.CoordinateSystem.BasisZ;
-            if (d.IsZeroLength()) return (alvo - con.Origin).Normalize();
-            d = d.Normalize();
-            if ((alvo - con.Origin).DotProduct(d) < 0) d = -d;
-            return d;
+            return d.IsZeroLength() ? XYZ.BasisZ : d.Normalize();
+        }
+
+        /// <summary>True se a rota dobra ~180° na emenda do stub com o caminho do meio.</summary>
+        private static bool Reverte(XYZ origem, XYZ stubEnd, IList<XYZ> middle, bool daPonta)
+        {
+            if (middle.Count < 2) return false;
+            var dStub = stubEnd - origem;
+            XYZ dNext = daPonta
+                ? middle[1] - middle[0]
+                : middle[middle.Count - 2] - middle[middle.Count - 1];
+            if (dStub.IsZeroLength() || dNext.IsZeroLength()) return false;
+            return dStub.Normalize().DotProduct(dNext.Normalize()) < -0.9;
         }
 
         private static IList<XYZ> Dedupe(IList<XYZ> pts)
@@ -361,6 +384,23 @@ namespace DmEletrico.Core.Routing
             foreach (var p in pts)
                 if (result.Count == 0 || result[result.Count - 1].DistanceTo(p) > 1e-6)
                     result.Add(p);
+            return result;
+        }
+
+        /// <summary>Remove vértices colineares: trechos na mesma direção viram um só conduíte.</summary>
+        private static IList<XYZ> SimplificarColineares(IList<XYZ> pts)
+        {
+            if (pts.Count < 3) return pts;
+            var result = new List<XYZ> { pts[0] };
+            for (int i = 1; i < pts.Count - 1; i++)
+            {
+                var d1 = pts[i] - result[result.Count - 1];
+                var d2 = pts[i + 1] - pts[i];
+                if (d1.IsZeroLength() || d2.IsZeroLength()) continue;
+                if (d1.Normalize().IsAlmostEqualTo(d2.Normalize(), 1e-6)) continue; // colinear
+                result.Add(pts[i]);
+            }
+            result.Add(pts[pts.Count - 1]);
             return result;
         }
 
