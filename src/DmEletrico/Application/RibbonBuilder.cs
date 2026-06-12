@@ -56,7 +56,14 @@ namespace DmEletrico.Application
                 name: "DmConduitBuilder",
                 text: "Construir\nConduítes",
                 command: typeof(DmConduitBuilderCommand),
-                tooltip: "Traça automaticamente o roteamento 3D de conduítes entre dispositivos e quadros, dimensionando pela NBR 5410. (Atalho: CB)",
+                tooltip: "Traça automaticamente o roteamento 3D de conduítes entre dispositivos e quadros, dimensionando pela NBR 5410. (Atalho: CB)\n\nNa 1ª vez na sessão abre a configuração; depois reaproveita.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmConduitConfig",
+                text: "Config.\nConduítes",
+                command: typeof(DmConduitConfigCommand),
+                tooltip: "Reabre a configuração do Construir Conduítes e salva para a sessão.",
                 availability: AvailabilityNames.ElectricalElements);
 
             AddButton(panel, asm,

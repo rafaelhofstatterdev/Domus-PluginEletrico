@@ -612,15 +612,18 @@ namespace DmEletrico.Core.Routing
             bool viaTeto = caminho == CaminhoConduite.Teto
                 || (caminho == CaminhoConduite.Ambos && Math.Abs(spineZ - loc.Z) > subida);
 
-            // Ponto que a rota mira ao SAIR do dispositivo.
-            var aim = viaTeto
-                ? new XYZ(loc.X, loc.Y, spineZ)                  // sobe à espinha
-                : new XYZ(outroPonto.X, outroPonto.Y, loc.Z);    // corre na horizontal
+            // Direção em que a rota SAI do dispositivo (= direção que o conector deve apontar):
+            //  - via teto → para CIMA (entra pela parte superior da tomada);
+            //  - horizontal → para o outro dispositivo no plano.
+            var horiz = new XYZ(outroPonto.X - loc.X, outroPonto.Y - loc.Y, 0);
+            var desejada = viaTeto
+                ? XYZ.BasisZ
+                : (horiz.IsZeroLength() ? XYZ.BasisX : horiz.Normalize());
 
             var centro = CentroDe(e);
 
             Connector? best = null;
-            double bestScore = double.MaxValue;
+            double bestScore = double.NegativeInfinity;
             Connector? fallback = null;
 
             foreach (Connector c in manager.Connectors)
@@ -631,24 +634,16 @@ namespace DmEletrico.Core.Routing
 
                 var eixo = AxisOut(c); // eixo EXATO apontando para fora
 
-                // SÓ conectores estritamente axiais (±X/±Y/±Z): as caixas têm
-                // conectores em todas as direções axiais; um diagonal geraria
-                // emendas que não fecham e conexões que o Revit recusa.
-                if (Axialidade(eixo) < 0.9) continue;
-
-                // Descarta conectores cujo eixo aponta para dentro do dispositivo.
+                // Descarta conectores que apontam para dentro do dispositivo.
                 var paraFora = c.Origin - centro;
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
 
-                var paraAim = aim - c.Origin;
-                var alinhamento = paraAim.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAim.Normalize());
-
-                // Alinhamento com o PRIMEIRO movimento da rota DOMINA o score:
-                // é ele que impede pegar o conector do topo quando a rota corre na
-                // horizontal (loop por cima) ou o lateral quando a rota desce de
-                // cima (conexão pelo lado).
-                var score = c.Origin.DistanceTo(aim) * 0.1 - alinhamento * 10.0;
-                if (score < bestScore) { bestScore = score; best = c; }
+                // Ranqueia pelo alinhamento com a direção desejada (DOMINA), com leve
+                // bônus por ser axial — entre vários "para cima", pega o mais vertical.
+                // Maior = melhor. Sem filtro rígido: garante pegar o superior mesmo
+                // que ele não seja perfeitamente vertical, em vez de cair no lateral.
+                var score = eixo.DotProduct(desejada) * 10.0 + Axialidade(eixo) * 2.0;
+                if (score > bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
         }

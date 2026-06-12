@@ -59,6 +59,19 @@ namespace DmEletrico.Core.Routing
             return new FilteredElementCollector(doc).OfClass(typeof(ConduitType)).FirstElementId();
         }
 
+        /// <summary>Cópia da configuração (sem a seleção de dispositivos, que é por execução).</summary>
+        public ConduitBuildOptions CloneConfig() => new ConduitBuildOptions
+        {
+            Modo = Modo,
+            TipoTetoPisoId = TipoTetoPisoId,
+            TipoParedeId = TipoParedeId,
+            DiametroForcadoMm = DiametroForcadoMm,
+            AnguloPlanta = AnguloPlanta,
+            AnguloParede = AnguloParede,
+            Orientacao = Orientacao,
+            Caminho = Caminho
+        };
+
         /// <summary>Opções padrão (tipos = primeiro ConduitType disponível).</summary>
         public static ConduitBuildOptions Default(Document doc)
         {

@@ -28,6 +28,12 @@ namespace DmEletrico.Commands
             BuiltInCategory.OST_ElectricalEquipment
         };
 
+        /// <summary>Configuração escolhida na 1ª execução, reutilizada na sessão.</summary>
+        private static ConduitBuildOptions? _configSessao;
+
+        /// <summary>Redefine a configuração da sessão (usado pelo comando de reconfiguração).</summary>
+        internal static void DefinirConfig(ConduitBuildOptions? options) => _configSessao = options;
+
         protected override Result Run(ExternalCommandData data, UIDocument uiDoc, Document doc)
         {
             var settings = DmProjectSettings.Read(doc);
@@ -37,24 +43,30 @@ namespace DmEletrico.Commands
                 return Result.Cancelled;
             }
 
-            var tipos = new FilteredElementCollector(doc)
-                .OfClass(typeof(ConduitType))
-                .Cast<ConduitType>()
-                .Select(t => new ConduitTypeOption(t.Name, t.Id.Value.ToString()))
-                .ToList();
-
-            if (tipos.Count == 0)
+            // 1ª vez na sessão → abre a configuração; depois reaproveita.
+            if (_configSessao == null)
             {
-                TaskDialog.Show("DmEletrico", "Nenhum tipo de conduíte carregado no projeto. Carregue uma família de conduíte e tente de novo.");
-                return Result.Cancelled;
+                var tipos = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ConduitType))
+                    .Cast<ConduitType>()
+                    .Select(t => new ConduitTypeOption(t.Name, t.Id.Value.ToString()))
+                    .ToList();
+
+                if (tipos.Count == 0)
+                {
+                    TaskDialog.Show("DmEletrico", "Nenhum tipo de conduíte carregado no projeto. Carregue uma família de conduíte e tente de novo.");
+                    return Result.Cancelled;
+                }
+
+                var vm = new DmConduitBuilderViewModel(tipos).WithDefaults();
+                var window = new DmConduitBuilderWindow { DataContext = vm };
+                if (window.ShowDialog() != true)
+                    return Result.Cancelled;
+
+                _configSessao = vm.ToOptions();
             }
 
-            var vm = new DmConduitBuilderViewModel(tipos).WithDefaults();
-            var window = new DmConduitBuilderWindow { DataContext = vm };
-            if (window.ShowDialog() != true)
-                return Result.Cancelled;
-
-            var options = vm.ToOptions();
+            var options = _configSessao.CloneConfig();
 
             // Modo "dispositivos selecionados": coleta os dispositivos a conectar.
             if (options.Modo == ModoSelecao.DispositivosSelecionados)
