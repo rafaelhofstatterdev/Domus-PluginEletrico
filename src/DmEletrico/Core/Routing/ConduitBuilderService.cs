@@ -328,9 +328,12 @@ namespace DmEletrico.Core.Routing
         /// o roteamento principal. Pontos colineares são fundidos para que stub +
         /// subida virem um único conduíte (sem fitting impossível no meio).
         /// </summary>
+        private static readonly double MergeTolFeet = UnitUtils.ConvertToInternalUnits(0.04, UnitTypeId.Meters); // ~4 cm
+
         private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
         {
-            var stub = UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters); // 30 cm
+            // Arranque curto: só o necessário para sair da caixa do dispositivo.
+            var stub = UnitUtils.ConvertToInternalUnits(0.08, UnitTypeId.Meters); // 8 cm
 
             var startMid = ptA;
             var endMid = ptB;
@@ -378,12 +381,25 @@ namespace DmEletrico.Core.Routing
             return dStub.Normalize().DotProduct(dNext.Normalize()) < -0.9;
         }
 
+        /// <summary>
+        /// Funde pontos consecutivos a menos de ~4 cm para o Revit não tentar criar
+        /// segmentos menores que um fitting. O último ponto (alvo da conexão) é
+        /// sempre preservado: se ficar perto do anterior, o anterior é descartado.
+        /// </summary>
         private static IList<XYZ> Dedupe(IList<XYZ> pts)
         {
             var result = new List<XYZ>();
-            foreach (var p in pts)
-                if (result.Count == 0 || result[result.Count - 1].DistanceTo(p) > 1e-6)
+            for (int i = 0; i < pts.Count; i++)
+            {
+                var p = pts[i];
+                var ultimo = i == pts.Count - 1;
+                if (result.Count == 0) { result.Add(p); continue; }
+
+                if (result[result.Count - 1].DistanceTo(p) > MergeTolFeet)
                     result.Add(p);
+                else if (ultimo)
+                    result[result.Count - 1] = p; // mantém o alvo exato
+            }
             return result;
         }
 
