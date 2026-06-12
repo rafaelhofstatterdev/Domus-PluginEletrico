@@ -44,7 +44,7 @@ namespace DmEletrico.Commands
 
             // Analisa a topologia (árvore no QD) e grava, em cada conduíte, os
             // condutores de TODOS os circuitos que passam por ele (carga a jusante).
-            WiringTopology.Analisar(doc, cfg);
+            var topo = WiringTopology.Analisar(doc, cfg);
 
             // Anota, ocultando as bitolas configuradas como ocultas.
             bool Incluir(Element c)
@@ -54,7 +54,7 @@ namespace DmEletrico.Commands
             }
 
             var report = TagService.AnotarFiacao(doc, view, ids, Incluir, cfg.FamiliaCondutores());
-            TaskDialog.Show("DmEletrico — Fiação Automática", report.ToString());
+            TaskDialog.Show("DmEletrico — Fiação Automática", report + "\n\n" + topo);
             return Result.Succeeded;
         }
     }

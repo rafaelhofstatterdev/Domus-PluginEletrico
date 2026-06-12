@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Electrical;
 
 namespace DmEletrico.Core.Circuits
 {
@@ -25,6 +26,8 @@ namespace DmEletrico.Core.Circuits
 
             using var tx = new Transaction(doc, "DmEletrico — Criar Circuito");
             tx.Start();
+            Core.WarningSwallower.Apply(tx);
+
             foreach (var id in deviceIds)
             {
                 var e = doc.GetElement(id);
@@ -37,8 +40,40 @@ namespace DmEletrico.Core.Circuits
                 Core.ParamPropagation.SetTexto(e, panel.Name, new[] { "quadro" }, new string[0]);
                 Core.ParamPropagation.SetTexto(e, panel.Name, new[] { "painel" }, new string[0]);
             }
+
+            // Cria também o circuito NATIVO do Revit (inicializa "força"), quando os
+            // dispositivos têm conector de força livre. Best-effort.
+            TentarCriarSistemaNativo(doc, deviceIds, panel);
+
             tx.Commit();
             return numero;
+        }
+
+        private static void TentarCriarSistemaNativo(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
+        {
+            var validos = deviceIds.Where(id => TemConectorPowerLivre(doc.GetElement(id))).ToList();
+            if (validos.Count == 0) return;
+            try
+            {
+                var sys = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
+                sys.SelectPanel(panel);
+                doc.Regenerate();
+            }
+            catch { /* sem conector de força compatível — segue só com o circuito lógico */ }
+        }
+
+        private static bool TemConectorPowerLivre(Element? e)
+        {
+            var manager = (e as FamilyInstance)?.MEPModel?.ConnectorManager;
+            if (manager == null) return false;
+            foreach (Connector c in manager.Connectors)
+            {
+                if (c.Domain != Domain.DomainElectrical || c.IsConnected) continue;
+                if (c.ElectricalSystemType == ElectricalSystemType.PowerCircuit ||
+                    c.ElectricalSystemType == ElectricalSystemType.UndefinedSystemType)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>Reatribui os dispositivos de um circuito a outro QDC.</summary>

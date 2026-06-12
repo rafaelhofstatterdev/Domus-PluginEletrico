@@ -28,15 +28,33 @@ namespace DmEletrico.Core.Wiring
             }
         }
 
-        /// <summary>Recalcula e grava os condutores de cada conduíte pela topologia. Própria transação.</summary>
-        public static int Analisar(Document doc, DmWiringSettings cfg)
+        public sealed class TopoReport
         {
+            public int Conduites;
+            public System.Collections.Generic.List<string> Trechos { get; } = new();
+            public override string ToString()
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"Conduítes com fiação calculada: {Conduites}");
+                if (Trechos.Count > 0)
+                {
+                    sb.AppendLine("\nTrechos (circuitos a jusante):");
+                    foreach (var t in Trechos.Take(20)) sb.AppendLine("• " + t);
+                }
+                return sb.ToString();
+            }
+        }
+
+        /// <summary>Recalcula e grava os condutores de cada conduíte pela topologia. Própria transação.</summary>
+        public static TopoReport Analisar(Document doc, DmWiringSettings cfg)
+        {
+            var report = new TopoReport();
             var conduites = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Conduit).WhereElementIsNotElementType()
                 .Where(c => long.TryParse(c.LookupParameter(DmParameters.NoA)?.AsString(), out _)
                          && long.TryParse(c.LookupParameter(DmParameters.NoB)?.AsString(), out _))
                 .ToList();
-            if (conduites.Count == 0) return 0;
+            if (conduites.Count == 0) return report;
 
             // Grafo: adjacência + conduítes por aresta (par não-ordenado).
             var adj = new Dictionary<long, HashSet<long>>();
@@ -83,7 +101,6 @@ namespace DmEletrico.Core.Wiring
                 lst.Add(kv.Key);
             }
 
-            int atualizados = 0;
             using var tx = new Transaction(doc, "DmEletrico — Analisar Fiação");
             tx.Start();
 
@@ -104,7 +121,11 @@ namespace DmEletrico.Core.Wiring
                 int fases = circuitos.Sum(x => x.Fases);
                 int neutros = circuitos.Sum(x => x.Neutros);
                 int terras = circuitos.Sum(x => x.Terras);
-                var resumo = string.Join(" | ", circuitos.Select(x => x.Resumo()));
+
+                // Lista limpa de circuitos (vai para N_Circuito da família DMEletrico_Condutores).
+                var numeros = string.Join(", ", circuitos.Select(x => x.Numero));
+                // Resumo detalhado só para o relatório.
+                report.Trechos.Add($"{numeros} → {fases}F+{neutros}N+{terras}T  [{string.Join(" | ", circuitos.Select(x => x.Resumo()))}]");
 
                 foreach (var c in conduitsAresta)
                 {
@@ -113,13 +134,13 @@ namespace DmEletrico.Core.Wiring
                     c.LookupParameter(DmParameters.NumTerras)?.Set(terras);
                     c.LookupParameter(DmParameters.NumRetornos)?.Set(0);
                     c.LookupParameter(DmParameters.NumCondutores)?.Set(fases + neutros + terras);
-                    c.LookupParameter(DmParameters.CircuitosNoTrecho)?.Set(resumo);
-                    atualizados++;
+                    c.LookupParameter(DmParameters.CircuitosNoTrecho)?.Set(numeros);
+                    report.Conduites++;
                 }
             }
 
             tx.Commit();
-            return atualizados;
+            return report;
         }
 
         private static IEnumerable<long> Subarvore(long raiz, Dictionary<long, List<long>> filhos)
