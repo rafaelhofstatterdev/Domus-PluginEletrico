@@ -612,13 +612,10 @@ namespace DmEletrico.Core.Routing
             bool viaTeto = caminho == CaminhoConduite.Teto
                 || (caminho == CaminhoConduite.Ambos && Math.Abs(spineZ - loc.Z) > subida);
 
-            // Direção em que a rota SAI do dispositivo (= direção que o conector deve apontar):
-            //  - via teto → para CIMA (entra pela parte superior da tomada);
-            //  - horizontal → para o outro dispositivo no plano.
+            // Direção horizontal até o alvo (no plano), para o stub/rota saírem na
+            // direção certa em vez de um eixo arbitrário.
             var horiz = new XYZ(outroPonto.X - loc.X, outroPonto.Y - loc.Y, 0);
-            var desejada = viaTeto
-                ? XYZ.BasisZ
-                : (horiz.IsZeroLength() ? XYZ.BasisX : horiz.Normalize());
+            XYZ? dirHoriz = horiz.IsZeroLength() ? null : horiz.Normalize();
 
             var centro = CentroDe(e);
 
@@ -638,11 +635,15 @@ namespace DmEletrico.Core.Routing
                 var paraFora = c.Origin - centro;
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
 
-                // Ranqueia pelo alinhamento com a direção desejada (DOMINA), com leve
-                // bônus por ser axial — entre vários "para cima", pega o mais vertical.
-                // Maior = melhor. Sem filtro rígido: garante pegar o superior mesmo
-                // que ele não seja perfeitamente vertical, em vez de cair no lateral.
-                var score = eixo.DotProduct(desejada) * 10.0 + Axialidade(eixo) * 2.0;
+                // Score combinado (maior = melhor):
+                //  - via teto → prioriza apontar para CIMA (entra/sai pelo topo);
+                //  - em todo caso → prioriza apontar para o ALVO no plano, para não
+                //    escolher um eixo arbitrário quando não há conector vertical
+                //    (era o que gerava o jog perto da caixa de passagem);
+                //  - desempate por axialidade.
+                var sUp = viaTeto ? eixo.Z : 0.0;
+                var sHoriz = dirHoriz != null ? eixo.DotProduct(dirHoriz) : 0.0;
+                var score = sUp * 10.0 + sHoriz * 6.0 + Axialidade(eixo) * 1.0;
                 if (score > bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
