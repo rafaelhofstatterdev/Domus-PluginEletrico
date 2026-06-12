@@ -52,12 +52,13 @@ namespace DmEletrico.Commands
                 return Result.Cancelled;
 
             var painel = (FamilyInstance)doc.GetElement(picker.Selecionado.Id);
-            var numero = CircuitService.CreateAndAssign(doc, dispositivos, painel);
+            var (numero, nativoInfo) = CircuitService.CreateAndAssign(doc, dispositivos, painel);
 
             TaskDialog.Show("DmEletrico — Criar Circuito",
-                string.IsNullOrEmpty(numero)
+                (string.IsNullOrEmpty(numero)
                     ? "Não foi possível criar o circuito."
-                    : $"Circuito {numero} criado e atribuído a {painel.Name} ({dispositivos.Count} dispositivo(s)).");
+                    : $"Circuito {numero} criado e atribuído a {painel.Name} ({dispositivos.Count} dispositivo(s)).")
+                + "\n\n" + nativoInfo);
             return Result.Succeeded;
         }
 

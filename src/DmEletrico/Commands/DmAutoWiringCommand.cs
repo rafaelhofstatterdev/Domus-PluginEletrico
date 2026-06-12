@@ -31,20 +31,29 @@ namespace DmEletrico.Commands
                     .WhereElementIsNotElementType()
                     .ToElementIds().ToList();
 
-            // Só os conduítes que possuem circuito (criados pelo Conduit Builder).
-            var ids = brutos.Where(id =>
-                !string.IsNullOrWhiteSpace(doc.GetElement(id)?.LookupParameter(DmParameters.CircuitoOrigemId)?.AsString()))
-                .ToList();
-
-            if (ids.Count == 0)
+            if (brutos.Count == 0)
             {
-                TaskDialog.Show("DmEletrico", "Nenhum conduíte com circuito encontrado. Atribua cargas, crie os circuitos e construa os conduítes antes da fiação.");
+                TaskDialog.Show("DmEletrico", "Nenhum conduíte selecionado nem visível nesta vista.");
                 return Result.Cancelled;
             }
 
             // Analisa a topologia (árvore no QD) e grava, em cada conduíte, os
             // condutores de TODOS os circuitos que passam por ele (carga a jusante).
+            // É a análise — não o parâmetro CircuitoOrigemId — que define os circuitos.
             var topo = WiringTopology.Analisar(doc, cfg);
+
+            // Anota só os conduítes que, após a análise, têm circuito passando.
+            var ids = brutos.Where(id =>
+                !string.IsNullOrWhiteSpace(doc.GetElement(id)?.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString()))
+                .ToList();
+
+            if (ids.Count == 0)
+            {
+                TaskDialog.Show("DmEletrico", "Nenhum circuito identificado nos conduítes.\n\n" +
+                    "Verifique: (1) o Setup foi rodado (parâmetros Dm_NoA/NoB), (2) os conduítes foram reconstruídos depois disso, " +
+                    "(3) há um QD conectado e dispositivos com circuito (Dm_NumeroCircuito).\n\n" + topo);
+                return Result.Cancelled;
+            }
 
             // Anota, ocultando as bitolas configuradas como ocultas.
             bool Incluir(Element c)

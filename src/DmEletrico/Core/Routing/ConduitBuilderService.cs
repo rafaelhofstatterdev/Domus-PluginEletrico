@@ -622,12 +622,12 @@ namespace DmEletrico.Core.Routing
             var loc = Origem(e);
             var tol = UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters);
 
-            // Decisão determinística pela altura RELATIVA dos dois dispositivos:
-            //  - se o OUTRO está acima → este é o de baixo → ENTRA por cima (conector ↑);
-            //  - se o outro está abaixo → este é o de cima → SAI pela lateral (↓ não, lateral);
-            //  - mesma altura → sai pela lateral em direção ao outro.
-            bool ignorarTeto = caminho == CaminhoConduite.Parede;
-            bool outroAcima = !ignorarTeto && outroPonto.Z > loc.Z + tol;
+            // Quando o percurso é pelo TETO, AMBAS as pontas saem/entram POR CIMA
+            // (na parede o trecho fica vertical). Em "Ambos" com desnível, idem.
+            // Em "Parede" (ou mesma altura), sai pela lateral em direção ao outro.
+            bool viaTeto = caminho == CaminhoConduite.Teto
+                || (caminho == CaminhoConduite.Ambos && System.Math.Abs(outroPonto.Z - loc.Z) > tol);
+            bool subir = viaTeto; // preferir o conector para cima nas duas pontas
 
             var horiz = new XYZ(outroPonto.X - loc.X, outroPonto.Y - loc.Y, 0);
             XYZ? dirHoriz = horiz.IsZeroLength() ? null : horiz.Normalize();
@@ -651,13 +651,12 @@ namespace DmEletrico.Core.Routing
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
 
                 // Maior = melhor.
-                //  - quando o outro está acima → fortíssima preferência pelo conector
-                //    para CIMA (eixo.Z) → entra pela parte superior;
-                //  - sempre → preferência pelo que aponta para o ALVO no plano;
-                //  - penaliza apontar para BAIXO (não faz sentido sair pelo chão);
-                //  - desempate por axialidade.
-                var sUp = outroAcima ? eixo.Z * 12.0 : 0.0;
-                var sHoriz = dirHoriz != null ? eixo.DotProduct(dirHoriz) * 6.0 : 0.0;
+                //  - via teto → fortíssima preferência pelo conector para CIMA (eixo.Z),
+                //    nas duas pontas → trecho na parede fica VERTICAL;
+                //  - quando corre no plano → preferência pelo que aponta para o ALVO;
+                //  - penaliza apontar para BAIXO; desempate por axialidade.
+                var sUp = subir ? eixo.Z * 12.0 : 0.0;
+                var sHoriz = (!subir && dirHoriz != null) ? eixo.DotProduct(dirHoriz) * 6.0 : 0.0;
                 var sDown = eixo.Z < 0 ? eixo.Z * 4.0 : 0.0; // eixo.Z negativo → reduz score
                 var score = sUp + sHoriz + sDown + Axialidade(eixo) * 1.0;
                 if (score > bestScore) { bestScore = score; best = c; }

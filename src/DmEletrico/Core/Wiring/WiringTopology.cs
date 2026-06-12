@@ -18,6 +18,7 @@ namespace DmEletrico.Core.Wiring
         {
             public string Numero = "";
             public int Fases, Neutros, Terras;
+            public double Secao;
             public string Resumo()
             {
                 var p = new List<string>();
@@ -49,6 +50,7 @@ namespace DmEletrico.Core.Wiring
         public static TopoReport Analisar(Document doc, DmWiringSettings cfg)
         {
             var report = new TopoReport();
+            var tensao = Core.DmProjectSettings.Read(doc).TensaoNominal;
             var conduites = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Conduit).WhereElementIsNotElementType()
                 .Where(c => long.TryParse(c.LookupParameter(DmParameters.NoA)?.AsString(), out _)
@@ -115,12 +117,13 @@ namespace DmEletrico.Core.Wiring
                     .Where(EhDispositivo)
                     .ToList();
 
-                var circuitos = AgruparCircuitos(devices, cfg);
+                var circuitos = AgruparCircuitos(devices, cfg, tensao);
                 if (circuitos.Count == 0) continue;
 
                 int fases = circuitos.Sum(x => x.Fases);
                 int neutros = circuitos.Sum(x => x.Neutros);
                 int terras = circuitos.Sum(x => x.Terras);
+                double secao = circuitos.Max(x => x.Secao);
 
                 // Lista limpa de circuitos (vai para N_Circuito da família DMEletrico_Condutores).
                 var numeros = string.Join(", ", circuitos.Select(x => x.Numero));
@@ -135,6 +138,12 @@ namespace DmEletrico.Core.Wiring
                     c.LookupParameter(DmParameters.NumRetornos)?.Set(0);
                     c.LookupParameter(DmParameters.NumCondutores)?.Set(fases + neutros + terras);
                     c.LookupParameter(DmParameters.CircuitosNoTrecho)?.Set(numeros);
+                    if (secao > 0)
+                    {
+                        c.LookupParameter(DmParameters.SecaoAdotada)?.Set(secao);
+                        c.LookupParameter(DmParameters.BitolaFase)?.Set(secao);
+                        c.LookupParameter(DmParameters.BitolaTerra)?.Set(secao);
+                    }
                     report.Conduites++;
                 }
             }
@@ -162,7 +171,7 @@ namespace DmEletrico.Core.Wiring
             return bic == BuiltInCategory.OST_ElectricalFixtures || bic == BuiltInCategory.OST_LightingFixtures;
         }
 
-        private static List<CircuitoFios> AgruparCircuitos(IEnumerable<Element> devices, DmWiringSettings cfg)
+        private static List<CircuitoFios> AgruparCircuitos(IEnumerable<Element> devices, DmWiringSettings cfg, double tensao)
         {
             return devices
                 .GroupBy(d => (d.LookupParameter(DmParameters.Quadro)?.AsString() ?? "")
@@ -175,7 +184,15 @@ namespace DmEletrico.Core.Wiring
                     var tipo = g.Select(d => d.LookupParameter(DmParameters.TipoCircuito)?.AsString())
                                 .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "";
                     var ct = WiringService.ContagemPorTipo(poles, tipo, cfg);
-                    return new CircuitoFios { Numero = numero, Fases = ct.Fases, Neutros = ct.Neutros, Terras = ct.Terras };
+
+                    // Seção pela corrente do circuito (soma das potências / tensão).
+                    var potVa = g.Sum(d => d.LookupParameter(DmParameters.Potencia)?.AsDouble() ?? 0);
+                    var corrente = tensao > 0 ? potVa / tensao : 0;
+                    var secao = corrente > 0
+                        ? Calculation.Nbr5410Tables.SecaoPorCapacidade(corrente)
+                        : Calculation.Nbr5410Tables.SecoesComerciais.First();
+
+                    return new CircuitoFios { Numero = numero, Fases = ct.Fases, Neutros = ct.Neutros, Terras = ct.Terras, Secao = secao };
                 })
                 .OrderBy(x => int.TryParse(x.Numero, out var n) ? n : 0)
                 .ToList();

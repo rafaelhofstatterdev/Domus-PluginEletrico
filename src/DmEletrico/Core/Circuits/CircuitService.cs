@@ -18,9 +18,9 @@ namespace DmEletrico.Core.Circuits
         /// Cria/atribui um circuito lógico aos dispositivos: grava Dm_Quadro (nome do
         /// QDC) e Dm_NumeroCircuito (sequencial por QDC). Retorna o número atribuído.
         /// </summary>
-        public static string CreateAndAssign(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
+        public static (string numero, string nativoInfo) CreateAndAssign(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
         {
-            if (deviceIds.Count == 0) return "";
+            if (deviceIds.Count == 0) return ("", "");
 
             var numero = NextNumero(doc, panel.Name).ToString();
 
@@ -43,23 +43,32 @@ namespace DmEletrico.Core.Circuits
 
             // Cria também o circuito NATIVO do Revit (inicializa "força"), quando os
             // dispositivos têm conector de força livre. Best-effort.
-            TentarCriarSistemaNativo(doc, deviceIds, panel);
+            var nativoInfo = TentarCriarSistemaNativo(doc, deviceIds, panel);
 
             tx.Commit();
-            return numero;
+            return (numero, nativoInfo);
         }
 
-        private static void TentarCriarSistemaNativo(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
+        private static string TentarCriarSistemaNativo(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
         {
             var validos = deviceIds.Where(id => TemConectorPowerLivre(doc.GetElement(id))).ToList();
-            if (validos.Count == 0) return;
+            if (validos.Count == 0)
+                return "Circuito nativo NÃO criado: nenhum dispositivo tem conector de força (Power) livre.";
             try
             {
                 var sys = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
-                sys.SelectPanel(panel);
+                try { sys.SelectPanel(panel); }
+                catch (System.Exception ex)
+                {
+                    return $"Circuito nativo criado, mas não foi atribuído ao QD '{panel.Name}': {ex.Message}";
+                }
                 doc.Regenerate();
+                return $"Circuito nativo do Revit criado e atribuído a '{panel.Name}' (nº {sys.CircuitNumber}).";
             }
-            catch { /* sem conector de força compatível — segue só com o circuito lógico */ }
+            catch (System.Exception ex)
+            {
+                return "Circuito nativo NÃO criado pelo Revit: " + ex.Message;
+            }
         }
 
         private static bool TemConectorPowerLivre(Element? e)
