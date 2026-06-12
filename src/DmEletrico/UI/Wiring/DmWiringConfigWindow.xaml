@@ -1,0 +1,42 @@
+<Window x:Class="DmEletrico.UI.Wiring.DmWiringConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:DmEletrico.UI.Converters"
+        Title="DmEletrico — Configuração de Fiação"
+        Width="560" Height="540"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <conv:FlexibleDoubleConverter x:Key="Dbl" />
+    </Window.Resources>
+    <DockPanel Margin="16">
+
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Quantitativo e segurança" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Margem de segurança (%)" VerticalAlignment="Center" Width="200" />
+                <TextBox Width="80" Text="{Binding MargemPercent, Converter={StaticResource Dbl}, UpdateSourceTrigger=LostFocus}" />
+            </StackPanel>
+
+            <TextBlock Text="Neutro e aterramento" FontWeight="SemiBold" Margin="0,4,0,4" />
+            <CheckBox Content="Forçar neutro em circuitos trifásicos" IsChecked="{Binding ForcarNeutroTrifasico}" Margin="0,2" />
+            <CheckBox Content="Separar cabo de terra na anotação" IsChecked="{Binding SepararTerra}" Margin="0,2" />
+            <CheckBox Content="Forçar fio terra para iluminação/interruptores" IsChecked="{Binding ForcarTerraIluminacao}" Margin="0,2" />
+
+            <TextBlock Text="Cabos por bitola (descrição e ocultar anotação)" FontWeight="SemiBold" Margin="0,10,0,4" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancelar" Width="100" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Salvar" Width="100" IsDefault="True" Click="OnSalvar" />
+        </StackPanel>
+
+        <DataGrid ItemsSource="{Binding Especificacoes}" AutoGenerateColumns="False"
+                  HeadersVisibility="Column" CanUserAddRows="False" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Bitola (mm²)" Binding="{Binding SecaoMm2}" Width="90" IsReadOnly="True" />
+                <DataGridTextColumn Header="Descrição (lista de compras)" Binding="{Binding Descricao}" Width="*" />
+                <DataGridCheckBoxColumn Header="Ocultar TAG" Binding="{Binding Ocultar}" Width="90" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

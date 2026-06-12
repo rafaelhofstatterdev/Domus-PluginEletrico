@@ -109,6 +109,7 @@ namespace DmEletrico.Core
                 (DmParameters.OffsetContrapiso,    SpecTypeId.Number),
                 (DmParameters.ModoRoteamento,      SpecTypeId.String.Text),
                 (DmParameters.ConduitTypeId,       SpecTypeId.String.Text),
+                (DmParameters.WiringConfig,        SpecTypeId.String.Text),
                 (DmParameters.MetodoInstalacao,    SpecTypeId.String.Text),
                 (DmParameters.SetupConcluido,      SpecTypeId.Boolean.YesNo),
             };

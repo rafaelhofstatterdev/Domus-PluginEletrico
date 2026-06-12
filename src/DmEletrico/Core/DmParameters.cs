@@ -53,6 +53,7 @@ namespace DmEletrico.Core
         public const string OffsetContrapiso = "Dm_OffsetContrapiso";       // m
         public const string ModoRoteamento = "Dm_ModoRoteamento";           // Ortogonal/Direto
         public const string ConduitTypeId = "Dm_ConduitTypeId";             // Id do ConduitType escolhido
+        public const string WiringConfig = "Dm_WiringConfig";               // JSON da configuração de fiação
         public const string SetupConcluido = "Dm_SetupConcluido";           // Yes/No
 
         /// <summary>

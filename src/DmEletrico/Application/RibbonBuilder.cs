@@ -136,13 +136,34 @@ namespace DmEletrico.Application
 
         private static void BuildAnnotationPanel(UIControlledApplication app, string asm)
         {
-            var panel = app.CreateRibbonPanel(DmApplication.TabName, "Anotação");
+            var panel = app.CreateRibbonPanel(DmApplication.TabName, "Fiação");
+
+            AddButton(panel, asm,
+                name: "DmAutoWiring",
+                text: "Fiação\nAutomática",
+                command: typeof(DmAutoWiringCommand),
+                tooltip: "Aplica a simbologia de fiação aos conduítes selecionados (ou todos da vista). Funciona em planta e 3D. Re-clicar realinha as anotações.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmWireList",
+                text: "Tabela de\nFiação",
+                command: typeof(DmWireListCommand),
+                tooltip: "Gera o quantitativo de condutores por bitola, com descrição e margem de segurança.",
+                availability: AvailabilityNames.ElectricalElements);
+
+            AddButton(panel, asm,
+                name: "DmWiringConfig",
+                text: "Config. de\nFiação",
+                command: typeof(DmWiringConfigCommand),
+                tooltip: "Descrições e ocultação por bitola, margem de segurança e regras de neutro/aterramento.",
+                availability: AvailabilityNames.ElectricalElements);
 
             AddButton(panel, asm,
                 name: "DmAutoTag",
                 text: "Auto\nTAG",
                 command: typeof(DmAutoTagCommand),
-                tooltip: "Insere automaticamente TAGs de fiação nos trechos de conduíte.",
+                tooltip: "Insere automaticamente TAGs de fiação em todos os conduítes da vista.",
                 availability: AvailabilityNames.ElectricalElements);
 
             AddButton(panel, asm,

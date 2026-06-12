@@ -107,6 +107,76 @@ namespace DmEletrico.Core.Annotation
             return true;
         }
 
+        /// <summary>
+        /// Fiação Automática (passo 1): anota os conduítes indicados. Remove primeiro
+        /// as anotações de fiação existentes na vista (re-clique = re-alinha) e
+        /// recoloca para os conduítes em que <paramref name="incluir"/> é verdadeiro
+        /// (permite ocultar bitolas configuradas), com anti-sobreposição.
+        /// </summary>
+        public static AutoTagReport AnotarFiacao(Document doc, View view, ICollection<ElementId> conduitIds, System.Func<Element, bool> incluir)
+        {
+            var report = new AutoTagReport();
+            if (!ViewSuportaTags(view))
+            {
+                report.Aviso = "A vista ativa não suporta anotações. Abra uma planta ou vista 3D.";
+                return report;
+            }
+            if (conduitIds.Count == 0)
+            {
+                report.Aviso = "Selecione conduítes (ou rode com conduítes na vista) para aplicar a fiação.";
+                return report;
+            }
+
+            var fiacao = FamiliaFiacaoSymbol(doc);
+            var tagSymbol = fiacao == null ? ConduitTagSymbol(doc) : null;
+            if (fiacao == null && tagSymbol == null)
+            {
+                report.Aviso = $"Carregue a família de anotação '{FamiliaFiacao}' (ou uma TAG de conduíte).";
+                return report;
+            }
+
+            using var tx = new Transaction(doc, "DmEletrico — Fiação Automática");
+            tx.Start();
+            Ativar(doc, fiacao);
+            Ativar(doc, tagSymbol);
+
+            // 1) Limpa anotações de fiação existentes na vista (re-alinhamento).
+            foreach (var id in AnotacoesDeFiacao(doc, view)) doc.Delete(id);
+            doc.Regenerate();
+
+            // 2) Recoloca para os conduítes incluídos.
+            var ocupados = new List<XYZ>();
+            foreach (var id in conduitIds)
+            {
+                var conduit = doc.GetElement(id);
+                if (conduit == null || !incluir(conduit)) continue;
+                var ponto = MidPoint(conduit);
+                if (ponto == null) continue;
+
+                ponto = EvitarSobreposicao(ponto, ocupados);
+                ocupados.Add(ponto);
+                ColocarAnotacao(doc, view, conduit, ponto, fiacao, tagSymbol);
+                report.TagsCriadas++;
+            }
+
+            tx.Commit();
+            return report;
+        }
+
+        private static List<ElementId> AnotacoesDeFiacao(Document doc, View view)
+        {
+            var ids = new List<ElementId>();
+            ids.AddRange(new FilteredElementCollector(doc, view.Id)
+                .OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>()
+                .Where(f => string.Equals(f.Symbol?.Family?.Name?.Trim(), FamiliaFiacao, System.StringComparison.OrdinalIgnoreCase))
+                .Select(f => f.Id));
+            ids.AddRange(new FilteredElementCollector(doc, view.Id)
+                .OfClass(typeof(IndependentTag)).Cast<IndependentTag>()
+                .Where(t => t.GetTaggedLocalElementIds().Count > 0)
+                .Select(t => t.Id));
+            return ids;
+        }
+
         /// <summary>Remove uma anotação/TAG.</summary>
         public static void Remove(Document doc, ElementId tagId)
         {
