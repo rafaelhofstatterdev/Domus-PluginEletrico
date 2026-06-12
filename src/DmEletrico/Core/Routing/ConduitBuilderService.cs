@@ -446,15 +446,21 @@ namespace DmEletrico.Core.Routing
         }
 
         /// <summary>
-        /// Eixo do conector para FORA do dispositivo, snapado ao eixo principal
-        /// (±X/±Y/±Z). O snap garante que o stub seja axial — sem ele, um eixo
-        /// quase-axial geraria emendas fora de 90° e fittings impossíveis.
+        /// Eixo EXATO do conector (BasisZ), normalizado. NÃO snapar: o ConnectTo
+        /// exige que o conduíte fique anti-paralelo ao eixo real do conector; snapar
+        /// um conector radial quebraria isso ("direção oposta") e um leve componente
+        /// vertical viraria ±Z, inflando a espinha (loops). A seleção é que prioriza
+        /// conectores já alinhados a um eixo (ver EscolherConectorConduite).
         /// </summary>
         private static XYZ AxisOut(Connector con)
         {
             var d = con.CoordinateSystem.BasisZ;
-            return d.IsZeroLength() ? XYZ.BasisZ : OrthogonalRouter.PrincipalAxis(d);
+            return d.IsZeroLength() ? XYZ.BasisZ : d.Normalize();
         }
+
+        /// <summary>Quão alinhado a um eixo (±X/±Y/±Z) está o vetor: 1 = axial, ~0,71 = 45°.</summary>
+        private static double Axialidade(XYZ v)
+            => Math.Max(Math.Abs(v.X), Math.Max(Math.Abs(v.Y), Math.Abs(v.Z)));
 
         /// <summary>True se a rota dobra ~180° na emenda do stub com o caminho do meio.</summary>
         private static bool Reverte(XYZ origem, XYZ stubEnd, IList<XYZ> middle, bool daPonta)
@@ -559,7 +565,6 @@ namespace DmEletrico.Core.Routing
                 : new XYZ(outroPonto.X, outroPonto.Y, loc.Z);    // corre na horizontal
 
             var centro = CentroDe(e);
-            const double K = 5.0; // peso do alinhamento (pés)
 
             Connector? best = null;
             double bestScore = double.MaxValue;
@@ -571,7 +576,7 @@ namespace DmEletrico.Core.Routing
                 if (c.Domain != Domain.DomainCableTrayConduit) continue;
                 fallback ??= c;
 
-                var eixo = AxisOut(c); // eixo principal (±X/±Y/±Z) apontando para fora
+                var eixo = AxisOut(c); // eixo EXATO apontando para fora
 
                 // Descarta conectores cujo eixo aponta para dentro do dispositivo.
                 var paraFora = c.Origin - centro;
@@ -580,7 +585,11 @@ namespace DmEletrico.Core.Routing
                 var paraAim = aim - c.Origin;
                 var alinhamento = paraAim.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAim.Normalize());
 
-                var score = c.Origin.DistanceTo(aim) - alinhamento * K;
+                // Menor score = melhor. Forte preferência por conectores AXIAIS (para
+                // o stub + rota fecharem a 90°) e que apontem para o alvo da rota.
+                var score = c.Origin.DistanceTo(aim)
+                          - alinhamento * 5.0
+                          - Axialidade(eixo) * 12.0;
                 if (score < bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
