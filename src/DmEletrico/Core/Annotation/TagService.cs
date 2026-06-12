@@ -140,6 +140,7 @@ namespace DmEletrico.Core.Annotation
 
             using var tx = new Transaction(doc, "DmEletrico — Fiação Automática");
             tx.Start();
+            Core.WarningSwallower.Apply(tx);
             Ativar(doc, fiacao);
             Ativar(doc, tagSymbol);
 
@@ -147,23 +148,54 @@ namespace DmEletrico.Core.Annotation
             foreach (var id in AnotacoesDeFiacao(doc, view)) doc.Delete(id);
             doc.Regenerate();
 
-            // 2) Recoloca para os conduítes incluídos.
+            // 2) Recoloca UMA anotação POR CIRCUITO (a família é desenhada para um
+            //    circuito; somar os totais quebra as fórmulas internas dela).
             var ocupados = new List<XYZ>();
+            var passo = UnitUtils.ConvertToInternalUnits(0.9, UnitTypeId.Meters); // separação entre circuitos
             foreach (var id in conduitIds)
             {
                 var conduit = doc.GetElement(id);
                 if (conduit == null || !incluir(conduit)) continue;
-                var ponto = MidPoint(conduit);
-                if (ponto == null) continue;
+                var meio = MidPoint(conduit);
+                if (meio == null) continue;
 
-                ponto = EvitarSobreposicao(ponto, ocupados);
-                ocupados.Add(ponto);
-                ColocarAnotacao(doc, view, conduit, ponto, fiacao, tagSymbol);
-                report.TagsCriadas++;
+                var circuitos = ParseDetalhe(conduit.LookupParameter(DmParameters.FiacaoDetalhe)?.AsString());
+                if (circuitos.Count == 0) continue;
+
+                for (int i = 0; i < circuitos.Count; i++)
+                {
+                    var cc = circuitos[i];
+                    var ponto = EvitarSobreposicao(new XYZ(meio.X, meio.Y + i * passo, meio.Z), ocupados);
+                    ocupados.Add(ponto);
+                    ColocarAnotacaoCircuito(doc, view, ponto, fiacao, tagSymbol, conduit, cc);
+                    report.TagsCriadas++;
+                }
             }
 
             tx.Commit();
             return report;
+        }
+
+        private struct CircuitoDet { public string Num; public int F, N, T; public double Bit; }
+
+        private static List<CircuitoDet> ParseDetalhe(string? detalhe)
+        {
+            var lista = new List<CircuitoDet>();
+            if (string.IsNullOrWhiteSpace(detalhe)) return lista;
+            foreach (var parte in detalhe.Split(';', System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = parte.Split(':');
+                if (kv.Length != 2) continue;
+                var vals = kv[1].Split(',');
+                if (vals.Length < 3) continue;
+                int.TryParse(vals[0], out var f);
+                int.TryParse(vals[1], out var n);
+                int.TryParse(vals[2], out var t);
+                double bit = 0;
+                if (vals.Length >= 4) double.TryParse(vals[3], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out bit);
+                lista.Add(new CircuitoDet { Num = kv[0], F = f, N = n, T = t, Bit = bit });
+            }
+            return lista;
         }
 
         private static List<ElementId> AnotacoesDeFiacao(Document doc, View view)
@@ -191,42 +223,42 @@ namespace DmEletrico.Core.Annotation
 
         // --- Colocação ---
 
+        /// <summary>Wrapper legado (AutoTag/ManualTag): usa o 1º circuito do conduíte, ou mono padrão.</summary>
         private static void ColocarAnotacao(
             Document doc, View view, Element conduit, XYZ ponto, FamilySymbol? fiacao, FamilySymbol? tagSymbol)
+        {
+            var circuitos = ParseDetalhe(conduit.LookupParameter(DmParameters.FiacaoDetalhe)?.AsString());
+            var cc = circuitos.Count > 0
+                ? circuitos[0]
+                : new CircuitoDet { Num = conduit.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString() ?? "", F = 1, N = 1, T = 0, Bit = 0 };
+            ColocarAnotacaoCircuito(doc, view, ponto, fiacao, tagSymbol, conduit, cc);
+        }
+
+        /// <summary>
+        /// Coloca uma anotação de fiação (família DMEletrico_Condutores) com os
+        /// valores de UM circuito: N_Fase/N_Neutro/N_Terra/N_Retorno, bitola e número.
+        /// Valores por circuito (mono) mantêm as fórmulas da família válidas.
+        /// </summary>
+        private static void ColocarAnotacaoCircuito(
+            Document doc, View view, XYZ ponto, FamilySymbol? fiacao, FamilySymbol? tagSymbol, Element conduit, CircuitoDet cc)
         {
             if (fiacao != null)
             {
                 var inst = doc.Create.NewFamilyInstance(ponto, fiacao, view);
-                CopiarParametrosFiacao(conduit, inst);
+                SetTexto(inst, "N_Circuito", cc.Num);
+                SetInteiro(inst, "N_Fase", System.Math.Max(1, cc.F));
+                SetInteiro(inst, "N_Neutro", cc.N);
+                SetInteiro(inst, "N_Terra", cc.T);
+                SetInteiro(inst, "N_Retorno", 0);
+                var bit = cc.Bit > 0 ? cc.Bit : LerDouble(conduit, DmParameters.SecaoAdotada, 1.5);
+                SetNumero(inst, "Bit_Fase", bit);
+                SetNumero(inst, "Bit_Terra", bit);
             }
             else if (tagSymbol != null)
             {
                 IndependentTag.Create(doc, tagSymbol.Id, view.Id, new Reference(conduit),
                     addLeader: false, TagOrientation.Horizontal, ponto);
             }
-        }
-
-        /// <summary>
-        /// Preenche os parâmetros da família de fiação (em_smb_fiação) com os dados
-        /// do circuito daquele conduíte: nº de fases/neutros/terras/retornos, bitolas
-        /// e número do circuito. Mapeia os nomes nativos da família a partir dos Dm_.
-        /// </summary>
-        private static void CopiarParametrosFiacao(Element conduit, Element inst)
-        {
-            // Número do circuito (texto).
-            SetTexto(inst, "N_Circuito", conduit.LookupParameter(DmParameters.CircuitosNoTrecho)?.AsString() ?? "");
-
-            // Contagens (inteiros).
-            SetInteiro(inst, "N_Fase", LerInt(conduit, DmParameters.NumFases, 1));
-            SetInteiro(inst, "N_Neutro", LerInt(conduit, DmParameters.NumNeutros, 1));
-            SetInteiro(inst, "N_Terra", LerInt(conduit, DmParameters.NumTerras, 1));
-            SetInteiro(inst, "N_Retorno", LerInt(conduit, DmParameters.NumRetornos, 0));
-
-            // Bitolas (mm²).
-            var bitFase = LerDouble(conduit, DmParameters.BitolaFase, LerDouble(conduit, DmParameters.SecaoAdotada, 0));
-            var bitTerra = LerDouble(conduit, DmParameters.BitolaTerra, bitFase);
-            SetNumero(inst, "Bit_Fase", bitFase);
-            SetNumero(inst, "Bit_Terra", bitTerra);
         }
 
         private static int LerInt(Element e, string nome, int padrao)

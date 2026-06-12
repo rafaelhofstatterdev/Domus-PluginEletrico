@@ -127,11 +127,15 @@ namespace DmEletrico.Core.Wiring
 
                 // Lista limpa de circuitos (vai para N_Circuito da família DMEletrico_Condutores).
                 var numeros = string.Join(", ", circuitos.Select(x => x.Numero));
+                // Detalhe por circuito (uma anotação por circuito): "num:F,N,T,bit;..."
+                var detalhe = string.Join(";", circuitos.Select(x =>
+                    $"{x.Numero}:{x.Fases},{x.Neutros},{x.Terras},{x.Secao.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
                 // Resumo detalhado só para o relatório.
                 report.Trechos.Add($"{numeros} → {fases}F+{neutros}N+{terras}T  [{string.Join(" | ", circuitos.Select(x => x.Resumo()))}]");
 
                 foreach (var c in conduitsAresta)
                 {
+                    c.LookupParameter(DmParameters.FiacaoDetalhe)?.Set(detalhe);
                     c.LookupParameter(DmParameters.NumFases)?.Set(fases);
                     c.LookupParameter(DmParameters.NumNeutros)?.Set(neutros);
                     c.LookupParameter(DmParameters.NumTerras)?.Set(terras);

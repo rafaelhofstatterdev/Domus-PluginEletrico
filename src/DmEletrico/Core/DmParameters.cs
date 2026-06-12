@@ -33,6 +33,7 @@ namespace DmEletrico.Core
         public const string BitolaTerra = "Dm_BitolaTerra";           // mm² (terra)
         public const string NoA = "Dm_NoA";                           // Id do elemento numa ponta da aresta
         public const string NoB = "Dm_NoB";                           // Id do elemento na outra ponta
+        public const string FiacaoDetalhe = "Dm_FiacaoDetalhe";       // detalhe por circuito: "num:F,N,T,bit;..."
 
         // --- Parâmetros de circuito / dispositivo ---
         public const string NumeroCircuito = "Dm_NumeroCircuito";
@@ -116,6 +117,7 @@ namespace DmEletrico.Core
                 new Definition(BitolaTerra,       SpecTypeId.Number,         isInstance: true, conduit),
                 new Definition(NoA,               SpecTypeId.String.Text,    isInstance: true, conduit),
                 new Definition(NoB,               SpecTypeId.String.Text,    isInstance: true, conduit),
+                new Definition(FiacaoDetalhe,     SpecTypeId.String.Text,    isInstance: true, conduit),
 
                 // Circuito / dispositivo
                 new Definition(NumeroCircuito,    SpecTypeId.String.Text,    isInstance: true, electrical),
