@@ -29,8 +29,11 @@ namespace DmEletrico.Core.Annotation
     /// </summary>
     public static class TagService
     {
-        /// <summary>Nome da família genérica de fiação solicitada para as anotações.</summary>
-        public const string FamiliaFiacao = "em_smb_fiação - Geral";
+        /// <summary>Família de anotação de condutores padrão (tamanho médio).</summary>
+        public const string FamiliaFiacao = "DMEletrico_Condutores_Medio";
+
+        /// <summary>Prefixo das famílias de condutores (qualquer tamanho).</summary>
+        public const string PrefixoCondutores = "DMEletrico_Condutores";
 
         public static AutoTagReport AutoTag(Document doc, View view)
         {
@@ -42,7 +45,7 @@ namespace DmEletrico.Core.Annotation
                 return report;
             }
 
-            var fiacao = FamiliaFiacaoSymbol(doc);
+            var fiacao = FamiliaFiacaoSymbol(doc, FamiliaFiacao);
             var tagSymbol = fiacao == null ? ConduitTagSymbol(doc) : null;
             if (fiacao == null && tagSymbol == null)
             {
@@ -92,7 +95,7 @@ namespace DmEletrico.Core.Annotation
         {
             if (!ViewSuportaTags(view)) return false;
 
-            var fiacao = FamiliaFiacaoSymbol(doc);
+            var fiacao = FamiliaFiacaoSymbol(doc, FamiliaFiacao);
             var tagSymbol = fiacao == null ? ConduitTagSymbol(doc) : null;
             if (fiacao == null && tagSymbol == null) return false;
 
@@ -113,7 +116,7 @@ namespace DmEletrico.Core.Annotation
         /// recoloca para os conduítes em que <paramref name="incluir"/> é verdadeiro
         /// (permite ocultar bitolas configuradas), com anti-sobreposição.
         /// </summary>
-        public static AutoTagReport AnotarFiacao(Document doc, View view, ICollection<ElementId> conduitIds, System.Func<Element, bool> incluir)
+        public static AutoTagReport AnotarFiacao(Document doc, View view, ICollection<ElementId> conduitIds, System.Func<Element, bool> incluir, string familia)
         {
             var report = new AutoTagReport();
             if (!ViewSuportaTags(view))
@@ -123,15 +126,15 @@ namespace DmEletrico.Core.Annotation
             }
             if (conduitIds.Count == 0)
             {
-                report.Aviso = "Selecione conduítes (ou rode com conduítes na vista) para aplicar a fiação.";
+                report.Aviso = "Nenhum conduíte com circuito encontrado para aplicar a fiação.";
                 return report;
             }
 
-            var fiacao = FamiliaFiacaoSymbol(doc);
+            var fiacao = FamiliaFiacaoSymbol(doc, familia);
             var tagSymbol = fiacao == null ? ConduitTagSymbol(doc) : null;
             if (fiacao == null && tagSymbol == null)
             {
-                report.Aviso = $"Carregue a família de anotação '{FamiliaFiacao}' (ou uma TAG de conduíte).";
+                report.Aviso = $"Carregue a família de anotação '{familia}' (ou outra DMEletrico_Condutores).";
                 return report;
             }
 
@@ -168,7 +171,7 @@ namespace DmEletrico.Core.Annotation
             var ids = new List<ElementId>();
             ids.AddRange(new FilteredElementCollector(doc, view.Id)
                 .OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>()
-                .Where(f => string.Equals(f.Symbol?.Family?.Name?.Trim(), FamiliaFiacao, System.StringComparison.OrdinalIgnoreCase))
+                .Where(f => (f.Symbol?.Family?.Name?.Trim() ?? "").StartsWith(PrefixoCondutores, System.StringComparison.OrdinalIgnoreCase))
                 .Select(f => f.Id));
             ids.AddRange(new FilteredElementCollector(doc, view.Id)
                 .OfClass(typeof(IndependentTag)).Cast<IndependentTag>()
@@ -263,12 +266,13 @@ namespace DmEletrico.Core.Annotation
 
         // --- Símbolos ---
 
-        private static FamilySymbol? FamiliaFiacaoSymbol(Document doc)
-            => new FilteredElementCollector(doc)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => string.Equals(s.Family?.Name?.Trim(), FamiliaFiacao,
-                    System.StringComparison.OrdinalIgnoreCase));
+        private static FamilySymbol? FamiliaFiacaoSymbol(Document doc, string familia)
+        {
+            var symbols = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>().ToList();
+            // Tamanho exato escolhido; se não houver, qualquer DMEletrico_Condutores.
+            return symbols.FirstOrDefault(s => string.Equals(s.Family?.Name?.Trim(), familia, System.StringComparison.OrdinalIgnoreCase))
+                ?? symbols.FirstOrDefault(s => (s.Family?.Name?.Trim() ?? "").StartsWith(PrefixoCondutores, System.StringComparison.OrdinalIgnoreCase));
+        }
 
         private static FamilySymbol? ConduitTagSymbol(Document doc)
             => new FilteredElementCollector(doc)
@@ -297,7 +301,7 @@ namespace DmEletrico.Core.Annotation
                 .Select(t => t.TagHeadPosition);
             var anots = new FilteredElementCollector(doc, view.Id)
                 .OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>()
-                .Where(f => string.Equals(f.Symbol?.Family?.Name?.Trim(), FamiliaFiacao, System.StringComparison.OrdinalIgnoreCase))
+                .Where(f => (f.Symbol?.Family?.Name?.Trim() ?? "").StartsWith(PrefixoCondutores, System.StringComparison.OrdinalIgnoreCase))
                 .Select(f => (f.Location as LocationPoint)?.Point)
                 .Where(p => p != null)
                 .Select(p => p!);

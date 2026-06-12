@@ -11,6 +11,12 @@
     <DockPanel Margin="16">
 
         <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Família de condutores (anotação)" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Tamanho (DMEletrico_Condutores)" VerticalAlignment="Center" Width="200" />
+                <ComboBox Width="120" ItemsSource="{Binding Tamanhos}" SelectedItem="{Binding TamanhoCondutores}" />
+            </StackPanel>
+
             <TextBlock Text="Quantitativo e segurança" FontWeight="SemiBold" Margin="0,0,0,4" />
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                 <TextBlock Text="Margem de segurança (%)" VerticalAlignment="Center" Width="200" />

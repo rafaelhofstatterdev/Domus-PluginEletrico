@@ -28,8 +28,14 @@ namespace DmEletrico.Core.Wiring
         public bool SepararTerra { get; set; } = false;
         public bool ForcarTerraIluminacao { get; set; } = true;
 
+        // Família de anotação de condutores e tamanho (Grande/Medio/Pequeno).
+        public string TamanhoCondutores { get; set; } = "Medio";
+
         // Passo 3 — descrições/ocultação por bitola.
         public List<WireSpec> Especificacoes { get; set; } = PadraoEspecs();
+
+        /// <summary>Nome da família de anotação de condutores conforme o tamanho escolhido.</summary>
+        public string FamiliaCondutores() => "DMEletrico_Condutores_" + TamanhoCondutores;
 
         public WireSpec EspecPara(double secao)
         {

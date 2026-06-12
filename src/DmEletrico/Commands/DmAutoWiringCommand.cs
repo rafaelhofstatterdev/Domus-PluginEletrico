@@ -23,16 +23,22 @@ namespace DmEletrico.Commands
             var view = uiDoc.ActiveView;
             var cfg = DmWiringSettings.Read(doc);
 
-            var ids = uiDoc.Selection.GetElementIds().Where(id => doc.GetElement(id) is Conduit).ToList();
-            if (ids.Count == 0)
-                ids = new FilteredElementCollector(doc, view.Id)
+            // Conduítes selecionados; se nada selecionado, todos da vista.
+            var brutos = uiDoc.Selection.GetElementIds().Where(id => doc.GetElement(id) is Conduit).ToList();
+            if (brutos.Count == 0)
+                brutos = new FilteredElementCollector(doc, view.Id)
                     .OfCategory(BuiltInCategory.OST_Conduit)
                     .WhereElementIsNotElementType()
                     .ToElementIds().ToList();
 
+            // Só os conduítes que possuem circuito (criados pelo Conduit Builder).
+            var ids = brutos.Where(id =>
+                !string.IsNullOrWhiteSpace(doc.GetElement(id)?.LookupParameter(DmParameters.CircuitoOrigemId)?.AsString()))
+                .ToList();
+
             if (ids.Count == 0)
             {
-                TaskDialog.Show("DmEletrico", "Nenhum conduíte selecionado nem visível nesta vista.");
+                TaskDialog.Show("DmEletrico", "Nenhum conduíte com circuito encontrado. Atribua cargas, crie os circuitos e construa os conduítes antes da fiação.");
                 return Result.Cancelled;
             }
 
@@ -46,7 +52,7 @@ namespace DmEletrico.Commands
                 return secao <= 0 || !cfg.Oculta(secao);
             }
 
-            var report = TagService.AnotarFiacao(doc, view, ids, Incluir);
+            var report = TagService.AnotarFiacao(doc, view, ids, Incluir, cfg.FamiliaCondutores());
             TaskDialog.Show("DmEletrico — Fiação Automática", report.ToString());
             return Result.Succeeded;
         }
