@@ -286,11 +286,28 @@ namespace DmEletrico.Core.Routing
             if (TentarConectar(conduits[conduits.Count - 1], conFim)) report.Conexoes++;
         }
 
+        /// <summary>
+        /// Conecta apenas se a geometria permitir: conectores coincidentes e com
+        /// eixos anti-paralelos (um de frente para o outro). Caso contrário NÃO
+        /// tenta — evita o erro "conduíte na direção oposta / sem espaço".
+        /// </summary>
         private static bool TentarConectar(Conduit conduit, Connector? alvo)
         {
             if (alvo == null || alvo.IsConnected) return false;
             var cc = FindConnectorAt(conduit, alvo.Origin);
             if (cc == null || cc.IsConnected) return false;
+
+            // Coincidência de origem.
+            if (cc.Origin.DistanceTo(alvo.Origin) > UnitUtils.ConvertToInternalUnits(0.005, UnitTypeId.Meters))
+                return false;
+
+            // Anti-paralelismo (os conectores precisam se encarar).
+            var da = alvo.CoordinateSystem.BasisZ;
+            var dc = cc.CoordinateSystem.BasisZ;
+            if (!da.IsZeroLength() && !dc.IsZeroLength() &&
+                da.Normalize().DotProduct(dc.Normalize()) > -0.85)
+                return false;
+
             try { cc.ConnectTo(alvo); return true; }
             catch { return false; }
         }
@@ -332,8 +349,8 @@ namespace DmEletrico.Core.Routing
 
         private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
         {
-            // Arranque curto: só o necessário para sair da caixa do dispositivo.
-            var stub = UnitUtils.ConvertToInternalUnits(0.08, UnitTypeId.Meters); // 8 cm
+            // Arranque curto: só o necessário para sair da caixa e caber o cotovelo.
+            var stub = UnitUtils.ConvertToInternalUnits(0.10, UnitTypeId.Meters); // 10 cm
 
             var startMid = ptA;
             var endMid = ptB;
@@ -445,33 +462,51 @@ namespace DmEletrico.Core.Routing
             => (e as FamilyInstance)?.MEPModel?.ConnectorManager ?? (e as MEPCurve)?.ConnectorManager;
 
         /// <summary>
-        /// Conector de conduíte livre que melhor serve para sair em direção ao alvo:
-        /// prioriza domínio de conduíte e o conector cujo EIXO aponta para o alvo
-        /// (ex.: o conector superior de uma tomada, para subir ao teto), não o lateral.
+        /// Escolhe o conector de conduíte livre que melhor serve para sair em direção
+        /// ao alvo: apenas conectores que apontam para FORA do dispositivo (descarta
+        /// os que entram nele) e, entre esses, o cujo eixo melhor aponta para o alvo
+        /// (ex.: o conector superior de uma tomada, para subir ao teto).
         /// </summary>
         private static Connector? ConduitConnectorMaisProximo(Element e, XYZ alvo)
         {
             var manager = ConnectorManagerOf(e);
             if (manager == null) return null;
 
-            const double K = 3.0; // peso do alinhamento (pés)
+            var centro = CentroDe(e);
+            const double K = 5.0; // peso do alinhamento (pés)
+
             Connector? best = null;
             double bestScore = double.MaxValue;
+            Connector? fallback = null;
+
             foreach (Connector c in manager.Connectors)
             {
                 if (c.IsConnected) continue;
-                var dom = c.Domain == Domain.DomainCableTrayConduit ? 0.0 : 1000.0;
+                if (c.Domain != Domain.DomainCableTrayConduit) continue;
+                fallback ??= c;
 
-                var paraAlvo = (alvo - c.Origin);
-                var alinhamento = 0.0;
-                if (!paraAlvo.IsZeroLength() && !c.CoordinateSystem.BasisZ.IsZeroLength())
-                    alinhamento = c.CoordinateSystem.BasisZ.Normalize().DotProduct(paraAlvo.Normalize());
+                var eixo = c.CoordinateSystem.BasisZ;
+                if (eixo.IsZeroLength()) continue;
+                eixo = eixo.Normalize();
 
-                // Menor score = melhor: perto, no domínio de conduíte e apontando ao alvo.
-                var score = dom + c.Origin.DistanceTo(alvo) - alinhamento * K;
+                // Descarta conectores cujo eixo aponta para dentro do dispositivo.
+                var paraFora = c.Origin - centro;
+                if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
+
+                var paraAlvo = alvo - c.Origin;
+                var alinhamento = paraAlvo.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAlvo.Normalize());
+
+                var score = c.Origin.DistanceTo(alvo) - alinhamento * K;
                 if (score < bestScore) { bestScore = score; best = c; }
             }
-            return best;
+            return best ?? fallback;
+        }
+
+        private static XYZ CentroDe(Element e)
+        {
+            var bb = e.get_BoundingBox(null);
+            if (bb != null) return (bb.Min + bb.Max) * 0.5;
+            return (e.Location as LocationPoint)?.Point ?? XYZ.Zero;
         }
 
         private static Connector? FindConnectorAt(MEPCurve conduit, XYZ pt)
