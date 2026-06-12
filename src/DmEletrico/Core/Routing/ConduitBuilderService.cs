@@ -112,7 +112,6 @@ namespace DmEletrico.Core.Routing
             var chave = circuito.Quadro + "|" + circuito.Numero;
 
             var levelId = ResolveLevelId(doc, panel);
-            var levelElev = (doc.GetElement(levelId) as Level)?.Elevation ?? 0.0;
 
             var correnteCirc = settings.TensaoNominal > 0 ? potenciaVa / settings.TensaoNominal : 0;
             var disjuntor = Nbr5410Tables.DisjuntorComercial(correnteCirc);
@@ -122,14 +121,16 @@ namespace DmEletrico.Core.Routing
 
             foreach (var dispositivo in dispositivos)
             {
-                var devCon = ConduitConnectorMaisProximo(dispositivo, painelOrigem);
-                var panCon = ConduitConnectorMaisProximo(panel, Origem(dispositivo));
-                var devPt = devCon?.Origin ?? Origem(dispositivo);
+                var devLoc = Origem(dispositivo);
+                // Espinha decidida pela altura dos dispositivos (não por um plano global).
+                var spineBase = Math.Max(devLoc.Z, painelOrigem.Z);
+
+                var devCon = EscolherConectorConduite(dispositivo, painelOrigem, spineBase, options.Caminho);
+                var panCon = EscolherConectorConduite(panel, devLoc, spineBase, options.Caminho);
+                var devPt = devCon?.Origin ?? devLoc;
                 var panPt = panCon?.Origin ?? painelOrigem;
 
-                var ambiente = LerAmbiente(dispositivo);
-                var offsetFeet = UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(ambiente), UnitTypeId.Meters);
-                var spineZ = levelElev + offsetFeet;
+                var spineZ = SpineElevation(devCon, devPt, panCon, panPt);
 
                 var caminho = CaminhoComStubs(devCon, devPt, panCon, panPt, spineZ, options, settings);
                 var trechoLenM = UnitUtils.ConvertFromInternalUnits(OrthogonalRouter.Comprimento(caminho), UnitTypeId.Meters);
@@ -182,16 +183,19 @@ namespace DmEletrico.Core.Routing
             }
 
             var levelId = ResolveLevelId(doc, elems[0]);
-            var levelElev = (doc.GetElement(levelId) as Level)?.Elevation ?? 0.0;
-            var spineZ = levelElev + UnitUtils.ConvertToInternalUnits(settings.OffsetPorAmbiente(AmbienteInstalacao.Teto), UnitTypeId.Meters);
 
             for (int i = 0; i < elems.Count - 1; i++)
             {
                 var a = elems[i]; var b = elems[i + 1];
-                var conA = ConduitConnectorMaisProximo(a, Origem(b));
-                var conB = ConduitConnectorMaisProximo(b, Origem(a));
-                var ptA = conA?.Origin ?? Origem(a);
-                var ptB = conB?.Origin ?? Origem(b);
+                var locA = Origem(a); var locB = Origem(b);
+                var spineBase = Math.Max(locA.Z, locB.Z);
+
+                var conA = EscolherConectorConduite(a, locB, spineBase, options.Caminho);
+                var conB = EscolherConectorConduite(b, locA, spineBase, options.Caminho);
+                var ptA = conA?.Origin ?? locA;
+                var ptB = conB?.Origin ?? locB;
+
+                var spineZ = SpineElevation(conA, ptA, conB, ptB);
 
                 var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options, settings);
                 var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
@@ -347,10 +351,29 @@ namespace DmEletrico.Core.Routing
         /// </summary>
         private static readonly double MergeTolFeet = UnitUtils.ConvertToInternalUnits(0.04, UnitTypeId.Meters); // ~4 cm
 
+        /// <summary>Arranque curto a partir do conector: só o necessário para sair da caixa e caber o cotovelo.</summary>
+        private static readonly double StubFeet = UnitUtils.ConvertToInternalUnits(0.10, UnitTypeId.Meters); // 10 cm
+
+        /// <summary>
+        /// Elevação da espinha horizontal: o topo do stub mais alto entre as duas
+        /// pontas. Assim a rota nunca sobe acima de quem já está no teto (uma
+        /// luminária a 2,85 m corre ~na própria altura, não num plano global a 3,0 m)
+        /// e nenhuma ponta precisa "mergulhar" abaixo do seu stub vertical.
+        /// </summary>
+        private static double SpineElevation(Connector? a, XYZ pa, Connector? b, XYZ pb)
+            => Math.Max(StubTopZ(a, pa), StubTopZ(b, pb));
+
+        private static double StubTopZ(Connector? c, XYZ p)
+        {
+            if (c == null) return p.Z;
+            // Só conta o stub que SOBE: um conector lateral/inferior não eleva a espinha.
+            return AxisOut(c).Z > 0.5 ? p.Z + StubFeet : p.Z;
+        }
+
         private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, ConduitBuildOptions options, DmProjectSettings settings)
         {
             // Arranque curto: só o necessário para sair da caixa e caber o cotovelo.
-            var stub = UnitUtils.ConvertToInternalUnits(0.10, UnitTypeId.Meters); // 10 cm
+            var stub = StubFeet;
 
             var startMid = ptA;
             var endMid = ptB;
@@ -379,11 +402,15 @@ namespace DmEletrico.Core.Routing
             return SimplificarColineares(Dedupe(pts));
         }
 
-        /// <summary>Eixo do conector para FORA do dispositivo (nunca invertido).</summary>
+        /// <summary>
+        /// Eixo do conector para FORA do dispositivo, snapado ao eixo principal
+        /// (±X/±Y/±Z). O snap garante que o stub seja axial — sem ele, um eixo
+        /// quase-axial geraria emendas fora de 90° e fittings impossíveis.
+        /// </summary>
         private static XYZ AxisOut(Connector con)
         {
             var d = con.CoordinateSystem.BasisZ;
-            return d.IsZeroLength() ? XYZ.BasisZ : d.Normalize();
+            return d.IsZeroLength() ? XYZ.BasisZ : OrthogonalRouter.PrincipalAxis(d);
         }
 
         /// <summary>True se a rota dobra ~180° na emenda do stub com o caminho do meio.</summary>
@@ -462,15 +489,31 @@ namespace DmEletrico.Core.Routing
             => (e as FamilyInstance)?.MEPModel?.ConnectorManager ?? (e as MEPCurve)?.ConnectorManager;
 
         /// <summary>
-        /// Escolhe o conector de conduíte livre que melhor serve para sair em direção
-        /// ao alvo: apenas conectores que apontam para FORA do dispositivo (descarta
-        /// os que entram nele) e, entre esses, o cujo eixo melhor aponta para o alvo
-        /// (ex.: o conector superior de uma tomada, para subir ao teto).
+        /// Escolhe o conector de conduíte livre alinhado com o PRIMEIRO movimento da
+        /// rota, não com a reta até o alvo. Esse é o ponto-chave para pegar o conector
+        /// SUPERIOR de uma tomada quando o conduíte vai subir ao teto: mesmo que o
+        /// destino esteja longe na horizontal, a rota sai verticalmente, então o
+        /// conector certo é o que aponta para a espinha — não o lateral.
+        ///
+        ///  - via teto  → o alvo de mira é o ponto na espinha logo acima do dispositivo
+        ///                (primeiro movimento = subir);
+        ///  - parede/direto → o alvo de mira é o outro dispositivo na mesma altura
+        ///                (primeiro movimento = correr na horizontal).
         /// </summary>
-        private static Connector? ConduitConnectorMaisProximo(Element e, XYZ alvo)
+        private static Connector? EscolherConectorConduite(Element e, XYZ outroPonto, double spineZ, CaminhoConduite caminho)
         {
             var manager = ConnectorManagerOf(e);
             if (manager == null) return null;
+
+            var loc = Origem(e);
+            var subida = UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters);
+            bool viaTeto = caminho == CaminhoConduite.Teto
+                || (caminho == CaminhoConduite.Ambos && Math.Abs(spineZ - loc.Z) > subida);
+
+            // Ponto que a rota mira ao SAIR do dispositivo.
+            var aim = viaTeto
+                ? new XYZ(loc.X, loc.Y, spineZ)                  // sobe à espinha
+                : new XYZ(outroPonto.X, outroPonto.Y, loc.Z);    // corre na horizontal
 
             var centro = CentroDe(e);
             const double K = 5.0; // peso do alinhamento (pés)
@@ -485,18 +528,16 @@ namespace DmEletrico.Core.Routing
                 if (c.Domain != Domain.DomainCableTrayConduit) continue;
                 fallback ??= c;
 
-                var eixo = c.CoordinateSystem.BasisZ;
-                if (eixo.IsZeroLength()) continue;
-                eixo = eixo.Normalize();
+                var eixo = AxisOut(c); // eixo principal (±X/±Y/±Z) apontando para fora
 
                 // Descarta conectores cujo eixo aponta para dentro do dispositivo.
                 var paraFora = c.Origin - centro;
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
 
-                var paraAlvo = alvo - c.Origin;
-                var alinhamento = paraAlvo.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAlvo.Normalize());
+                var paraAim = aim - c.Origin;
+                var alinhamento = paraAim.IsZeroLength() ? 0.0 : eixo.DotProduct(paraAim.Normalize());
 
-                var score = c.Origin.DistanceTo(alvo) - alinhamento * K;
+                var score = c.Origin.DistanceTo(aim) - alinhamento * K;
                 if (score < bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
@@ -546,12 +587,6 @@ namespace DmEletrico.Core.Routing
             if (curve == null) yield break;
             yield return curve.GetEndPoint(0);
             yield return curve.GetEndPoint(1);
-        }
-
-        private static AmbienteInstalacao LerAmbiente(Element e)
-        {
-            var s = e.LookupParameter(DmParameters.Ambiente)?.AsString();
-            return Enum.TryParse<AmbienteInstalacao>(s, true, out var a) ? a : AmbienteInstalacao.Teto;
         }
 
         private static ElementId ResolveLevelId(Document doc, Element e)

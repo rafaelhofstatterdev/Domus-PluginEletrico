@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Autodesk.Revit.DB;
 
@@ -59,6 +60,23 @@ namespace DmEletrico.Core.Routing
         /// <summary>Roteamento "pelo teto": sobe à espinha, corre e desce.</summary>
         public static IList<XYZ> RouteTeto(XYZ from, XYZ to, double spineElevation)
             => Route(from, to, spineElevation);
+
+        /// <summary>
+        /// Snapa um vetor ao eixo principal (±X, ±Y ou ±Z) mais próximo. Conectores
+        /// de família raramente têm o eixo perfeitamente alinhado; sem este snap, o
+        /// "stub" sairia numa direção quase-axial e a emenda com o trecho ortogonal
+        /// não fecharia a 90°, fazendo o NewElbowFitting falhar (segmentos
+        /// impossíveis / zigzag). Com o snap, todo segmento é axial e toda junção é
+        /// reta (colinear → funde) ou exatamente 90° (cotovelo válido).
+        /// </summary>
+        public static XYZ PrincipalAxis(XYZ v)
+        {
+            if (v.IsZeroLength()) return XYZ.BasisZ;
+            double ax = Math.Abs(v.X), ay = Math.Abs(v.Y), az = Math.Abs(v.Z);
+            if (ax >= ay && ax >= az) return new XYZ(Math.Sign(v.X), 0, 0);
+            if (ay >= ax && ay >= az) return new XYZ(0, Math.Sign(v.Y), 0);
+            return new XYZ(0, 0, Math.Sign(v.Z));
+        }
 
         /// <summary>Comprimento total (em pés) de um caminho.</summary>
         public static double Comprimento(IList<XYZ> pts)
