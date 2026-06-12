@@ -51,55 +51,38 @@ namespace DmEletrico.Core.Circuits
 
         private static string TentarCriarSistemaNativo(Document doc, ICollection<ElementId> deviceIds, FamilyInstance panel)
         {
+            // Já circuitado? (conector de força em uso) → não há o que fazer.
+            if (deviceIds.Any(id => JaCircuitado(doc.GetElement(id))))
+                return "Circuito nativo: o(s) dispositivo(s) já estão ligados a um circuito de força nativo.";
+
             var validos = deviceIds.Where(id => TemConectorPowerLivre(doc.GetElement(id))).ToList();
             if (validos.Count == 0)
-                return "Circuito nativo NÃO criado: nenhum dispositivo tem conector de força (Power) livre.";
+                return "Circuito nativo NÃO criado: o dispositivo não tem conector de força (Power). Segue só com o circuito lógico.";
+
+            ElectricalSystem? sys = null;
             try
             {
-                var sys = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
-
-                if (TentarSelecionarPainel(doc, sys, panel))
-                {
-                    doc.Regenerate();
-                    return $"Circuito nativo do Revit criado e atribuído a '{panel.Name}' (nº {sys.CircuitNumber}).";
-                }
-
-                // Falhou por incompatibilidade: garante um Sistema de Distribuição
-                // no QD e tenta de novo (causa típica de 'panel and circuit do not match').
-                if (GarantirSistemaDistribuicao(doc, panel) && TentarSelecionarPainel(doc, sys, panel))
-                {
-                    doc.Regenerate();
-                    return $"Circuito nativo criado, Sistema de Distribuição atribuído ao QD e circuito ligado a '{panel.Name}'.";
-                }
-
-                return $"Circuito nativo criado, mas o QD '{panel.Name}' não aceitou (verifique o Sistema de Distribuição/tensão do quadro).";
+                sys = ElectricalSystem.Create(doc, validos, ElectricalSystemType.PowerCircuit);
+                // NÃO força Sistema de Distribuição (isso causava 'tipo inválido').
+                // Tenta atribuir ao QD apenas se ele já estiver compatível.
+                sys.SelectPanel(panel);
+                doc.Regenerate();
+                return $"Circuito nativo do Revit criado e atribuído a '{panel.Name}' (nº {sys.CircuitNumber}).";
             }
             catch (System.Exception ex)
             {
-                return "Circuito nativo NÃO criado pelo Revit: " + ex.Message;
+                // Limpa o circuito órfão para não deixar lixo nem erro de validação.
+                try { if (sys != null && doc.GetElement(sys.Id) != null) doc.Delete(sys.Id); } catch { }
+                return "Circuito nativo NÃO atribuído: configure o Sistema de Distribuição do QD " +
+                       $"(tensão/fases compatíveis) e crie a força do quadro. Detalhe: {ex.Message}. " +
+                       "O circuito lógico do DmEletrico foi criado normalmente.";
             }
         }
 
-        private static bool TentarSelecionarPainel(Document doc, ElectricalSystem sys, FamilyInstance panel)
+        private static bool JaCircuitado(Element? e)
         {
-            try { sys.SelectPanel(panel); return true; }
-            catch { return false; }
-        }
-
-        /// <summary>Atribui um Sistema de Distribuição ao QD se ele não tiver um.</summary>
-        private static bool GarantirSistemaDistribuicao(Document doc, FamilyInstance panel)
-        {
-            var p = panel.get_Parameter(BuiltInParameter.RBS_FAMILY_CONTENT_DISTRIBUTION_SYSTEM);
-            if (p == null || p.IsReadOnly) return false;
-            if (p.AsElementId() != null && p.AsElementId() != ElementId.InvalidElementId) return true; // já tem
-
-            var dist = new FilteredElementCollector(doc)
-                .OfClass(typeof(DistributionSysType))
-                .FirstElementId();
-            if (dist == ElementId.InvalidElementId) return false;
-
-            try { p.Set(dist); doc.Regenerate(); return true; }
-            catch { return false; }
+            var systems = (e as FamilyInstance)?.MEPModel?.GetElectricalSystems();
+            return systems != null && systems.Count > 0;
         }
 
         private static bool TemConectorPowerLivre(Element? e)
