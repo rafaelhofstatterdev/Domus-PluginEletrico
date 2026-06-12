@@ -374,9 +374,12 @@ namespace DmEletrico.Core.Routing
                 case CaminhoConduite.Parede: return OrthogonalRouter.RouteParede(a, b);
                 case CaminhoConduite.Teto: return OrthogonalRouter.RouteTeto(a, b, spineZ);
                 default:
-                    var parede = OrthogonalRouter.RouteParede(a, b);
-                    var teto = OrthogonalRouter.RouteTeto(a, b, spineZ);
-                    return OrthogonalRouter.Comprimento(parede) <= OrthogonalRouter.Comprimento(teto) ? parede : teto;
+                    // Ambos: mesma altura → pela parede (ortogonal no plano);
+                    // alturas diferentes → pelo teto (sobe, corre, desce na parede).
+                    var mesmaAltura = Math.Abs(a.Z - b.Z) <= UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters);
+                    return mesmaAltura
+                        ? OrthogonalRouter.RouteParede(a, b)
+                        : OrthogonalRouter.RouteTeto(a, b, spineZ);
             }
         }
 
@@ -385,19 +388,31 @@ namespace DmEletrico.Core.Routing
         private static ConnectorManager? ConnectorManagerOf(Element e)
             => (e as FamilyInstance)?.MEPModel?.ConnectorManager ?? (e as MEPCurve)?.ConnectorManager;
 
-        /// <summary>Conector de conduíte livre mais próximo do alvo (prioriza domínio de conduíte).</summary>
+        /// <summary>
+        /// Conector de conduíte livre que melhor serve para sair em direção ao alvo:
+        /// prioriza domínio de conduíte e o conector cujo EIXO aponta para o alvo
+        /// (ex.: o conector superior de uma tomada, para subir ao teto), não o lateral.
+        /// </summary>
         private static Connector? ConduitConnectorMaisProximo(Element e, XYZ alvo)
         {
             var manager = ConnectorManagerOf(e);
             if (manager == null) return null;
 
+            const double K = 3.0; // peso do alinhamento (pés)
             Connector? best = null;
             double bestScore = double.MaxValue;
             foreach (Connector c in manager.Connectors)
             {
                 if (c.IsConnected) continue;
-                var pref = c.Domain == Domain.DomainCableTrayConduit ? 0.0 : 1000.0;
-                var score = c.Origin.DistanceTo(alvo) + pref;
+                var dom = c.Domain == Domain.DomainCableTrayConduit ? 0.0 : 1000.0;
+
+                var paraAlvo = (alvo - c.Origin);
+                var alinhamento = 0.0;
+                if (!paraAlvo.IsZeroLength() && !c.CoordinateSystem.BasisZ.IsZeroLength())
+                    alinhamento = c.CoordinateSystem.BasisZ.Normalize().DotProduct(paraAlvo.Normalize());
+
+                // Menor score = melhor: perto, no domínio de conduíte e apontando ao alvo.
+                var score = dom + c.Origin.DistanceTo(alvo) - alinhamento * K;
                 if (score < bestScore) { bestScore = score; best = c; }
             }
             return best;

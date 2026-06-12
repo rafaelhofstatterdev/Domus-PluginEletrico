@@ -44,11 +44,14 @@ namespace DmEletrico.Core.Routing
         /// </summary>
         public static IList<XYZ> RouteParede(XYZ from, XYZ to)
         {
+            // Estritamente ortogonal (Manhattan): X, depois Y, depois Z — nunca
+            // diagonal, para hugar parede/piso em vez de cruzar o vazio.
             var pontos = new List<XYZ>
             {
                 from,
-                new XYZ(to.X, to.Y, from.Z), // corre no plano na altura de origem
-                to                           // sobe/desce até o destino
+                new XYZ(to.X, from.Y, from.Z), // corre em X na altura de origem
+                new XYZ(to.X, to.Y, from.Z),   // corre em Y na altura de origem
+                to                             // sobe/desce até o destino
             };
             return Dedupe(pontos);
         }

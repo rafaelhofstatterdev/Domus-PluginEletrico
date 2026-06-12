@@ -50,6 +50,9 @@ namespace DmEletrico.Commands
                     e.LookupParameter(DmParameters.TensaoOperacao)?.Set(vm.TensaoOperacao);
                     e.LookupParameter(DmParameters.TipoCircuito)?.Set(vm.TipoCircuito);
                     e.LookupParameter(DmParameters.Disjuntor)?.Set(disjuntor);
+
+                    // Propaga para os parâmetros nativos/da família.
+                    PropagarParaFamilia(e, vm.Potencia, vm.TensaoOperacao);
                 }
                 tx.Commit();
             }
@@ -57,6 +60,30 @@ namespace DmEletrico.Commands
             TaskDialog.Show("DmEletrico — Atribuir Carga",
                 $"Carga aplicada a {dispositivos.Count} dispositivo(s).");
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// Grava a potência/tensão também nos parâmetros da família que aparentam ser
+        /// entradas de carga (ex.: "..._Potência Aparente", "..._Tensão"), pulando
+        /// fator de potência e potência ativa (calculados).
+        /// </summary>
+        private static void PropagarParaFamilia(Element e, double potencia, double tensao)
+        {
+            foreach (Parameter p in e.Parameters)
+            {
+                if (p.IsReadOnly) continue;
+                var nome = p.Definition?.Name ?? "";
+                var low = nome.ToLowerInvariant();
+                if (low.StartsWith("dm_")) continue;
+
+                var ehPotencia = (low.Contains("potência") || low.Contains("potencia") || low.Contains("(va)"))
+                                 && low.Contains("aparente")
+                                 && !low.Contains("fator") && !low.Contains("ativa");
+                var ehTensao = low.Contains("tensão") || low.Contains("tensao");
+
+                if (p.StorageType == StorageType.Double && ehPotencia) p.Set(potencia);
+                else if (p.StorageType == StorageType.Double && ehTensao) p.Set(tensao);
+            }
         }
 
         private static List<Element> DispositivosSelecionados(UIDocument uiDoc, Document doc)
