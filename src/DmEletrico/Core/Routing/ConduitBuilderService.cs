@@ -187,11 +187,17 @@ namespace DmEletrico.Core.Routing
                 CircuitosAgrupados = 1
             });
 
+            // Prioridade do diâmetro físico: forçado pelo usuário > tamanho do
+            // conector do dispositivo (obrigatório para a conexão encaixar) > NBR.
+            var diamConectorFeet = DiametroConectorFeet(conA, conB);
             var diametroMm = options.DiametroForcadoMm > 0
                 ? options.DiametroForcadoMm
-                : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
+                : diamConectorFeet > 0
+                    ? UnitUtils.ConvertFromInternalUnits(diamConectorFeet, UnitTypeId.Millimeters)
+                    : ConduitSizing.DiametroNominal(r.SecaoAdotadaMm2, nCondutores);
+            var diamFisicoFeet = UnitUtils.ConvertToInternalUnits(diametroMm, UnitTypeId.Millimeters);
 
-            var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
+            var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report, diamFisicoFeet);
             CriarCurvas(doc, conduits, report);
             ConectarPontas(conduits, conA, conB, report);
             AplicarParametros(conduits, r, potenciaVa, diametroMm, nCondutores, poles,
@@ -240,12 +246,19 @@ namespace DmEletrico.Core.Routing
                 var spineZ = SpineElevation(conA, ptA, conB, ptB);
 
                 var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options, settings);
-                var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report);
+
+                var diamConectorFeet = DiametroConectorFeet(conA, conB);
+                var diamMm = options.DiametroForcadoMm > 0
+                    ? options.DiametroForcadoMm
+                    : diamConectorFeet > 0
+                        ? UnitUtils.ConvertFromInternalUnits(diamConectorFeet, UnitTypeId.Millimeters)
+                        : 25;
+                var diamFeet = UnitUtils.ConvertToInternalUnits(diamMm, UnitTypeId.Millimeters);
+
+                var conduits = CriarConduites(doc, tetoId, paredeId, levelId, caminho, report, diamFeet);
                 CriarCurvas(doc, conduits, report);
                 ConectarPontas(conduits, conA, conB, report);
 
-                var diam = options.DiametroForcadoMm > 0 ? options.DiametroForcadoMm : 25;
-                var diamFeet = UnitUtils.ConvertToInternalUnits(diam, UnitTypeId.Millimeters);
                 foreach (var c in conduits) SetDouble(c, DmParameters.DiametroNominal, diamFeet);
             }
 
@@ -291,7 +304,9 @@ namespace DmEletrico.Core.Routing
 
         // ===== Geometria =====
 
-        private List<Conduit> CriarConduites(Document doc, ElementId tetoId, ElementId paredeId, ElementId levelId, IList<XYZ> caminho, ConduitBuildReport report)
+        private List<Conduit> CriarConduites(
+            Document doc, ElementId tetoId, ElementId paredeId, ElementId levelId,
+            IList<XYZ> caminho, ConduitBuildReport report, double diamFeet = 0)
         {
             var conduits = new List<Conduit>();
             for (int i = 0; i < caminho.Count - 1; i++)
@@ -300,7 +315,18 @@ namespace DmEletrico.Core.Routing
                 if (a.DistanceTo(b) <= Tol) continue;
                 var vertical = Math.Abs(b.Z - a.Z) > Math.Abs(b.X - a.X) + Math.Abs(b.Y - a.Y);
                 var typeId = vertical && paredeId != ElementId.InvalidElementId ? paredeId : tetoId;
-                conduits.Add(Conduit.Create(doc, typeId, a, b, levelId));
+                var conduit = Conduit.Create(doc, typeId, a, b, levelId);
+
+                // Diâmetro FÍSICO do conduíte (não só o parâmetro Dm_): sem isso o
+                // conduíte fica no tamanho padrão do tipo, diferente do conector do
+                // dispositivo, e a conexão/cotovelo falham.
+                if (diamFeet > 0)
+                {
+                    try { conduit.get_Parameter(BuiltInParameter.RBS_CONDUIT_DIAMETER_PARAM)?.Set(diamFeet); }
+                    catch { /* tamanho fora da lista de tamanhos do tipo */ }
+                }
+
+                conduits.Add(conduit);
                 report.ConduitesCriados++;
             }
             return conduits;
@@ -347,11 +373,13 @@ namespace DmEletrico.Core.Routing
             if (cc.Origin.DistanceTo(alvo.Origin) > UnitUtils.ConvertToInternalUnits(0.005, UnitTypeId.Meters))
                 return false;
 
-            // Anti-paralelismo (os conectores precisam se encarar).
+            // Anti-paralelismo (os conectores precisam se encarar). O conduíte é
+            // criado ao longo do eixo exato do conector, então isto é ~-1.0; a folga
+            // cobre apenas desvio numérico.
             var da = alvo.CoordinateSystem.BasisZ;
             var dc = cc.CoordinateSystem.BasisZ;
             if (!da.IsZeroLength() && !dc.IsZeroLength() &&
-                da.Normalize().DotProduct(dc.Normalize()) > -0.85)
+                da.Normalize().DotProduct(dc.Normalize()) > -0.6)
                 return false;
 
             try { cc.ConnectTo(alvo); return true; }
@@ -394,8 +422,12 @@ namespace DmEletrico.Core.Routing
         /// </summary>
         private static readonly double MergeTolFeet = UnitUtils.ConvertToInternalUnits(0.04, UnitTypeId.Meters); // ~4 cm
 
-        /// <summary>Arranque curto a partir do conector: só o necessário para sair da caixa e caber o cotovelo.</summary>
-        private static readonly double StubFeet = UnitUtils.ConvertToInternalUnits(0.10, UnitTypeId.Meters); // 10 cm
+        /// <summary>
+        /// Arranque a partir do conector. PRECISA ser maior que o raio de curvatura
+        /// do cotovelo (~15 cm para conduíte de 25 mm); com stub menor o fitting não
+        /// cabe e o Revit acusa "não há espaço para criar as conexões".
+        /// </summary>
+        private static readonly double StubFeet = UnitUtils.ConvertToInternalUnits(0.25, UnitTypeId.Meters); // 25 cm
 
         /// <summary>
         /// Elevação da espinha horizontal: o topo do stub mais alto entre as duas
@@ -422,6 +454,15 @@ namespace DmEletrico.Core.Routing
             var endMid = ptB;
             if (conA != null) startMid = conA.Origin + AxisOut(conA) * stub;
             if (conB != null) endMid = conB.Origin + AxisOut(conB) * stub;
+
+            // Pernas verticais menores que um fitting não cabem: se a espinha está
+            // quase na altura de uma das pontas, alinha-a a essa ponta (sem micro-subida).
+            var minLeg = UnitUtils.ConvertToInternalUnits(0.15, UnitTypeId.Meters);
+            var dA = Math.Abs(spineZ - startMid.Z);
+            var dB = Math.Abs(spineZ - endMid.Z);
+            if (dA < minLeg && dB < minLeg) spineZ = Math.Max(startMid.Z, endMid.Z);
+            else if (dA < minLeg) spineZ = startMid.Z;
+            else if (dB < minLeg) spineZ = endMid.Z;
 
             var middle = EscolherCaminho(startMid, endMid, spineZ, options, settings);
 
@@ -600,6 +641,23 @@ namespace DmEletrico.Core.Routing
             var bb = e.get_BoundingBox(null);
             if (bb != null) return (bb.Min + bb.Max) * 0.5;
             return (e.Location as LocationPoint)?.Point ?? XYZ.Zero;
+        }
+
+        /// <summary>Maior diâmetro (pés) entre os conectores redondos das pontas; 0 se nenhum.</summary>
+        private static double DiametroConectorFeet(Connector? a, Connector? b)
+        {
+            double d = 0;
+            foreach (var c in new[] { a, b })
+            {
+                if (c == null) continue;
+                try
+                {
+                    if (c.Shape == ConnectorProfileType.Round)
+                        d = Math.Max(d, c.Radius * 2);
+                }
+                catch { /* conector sem perfil definido */ }
+            }
+            return d;
         }
 
         private static Connector? FindConnectorAt(MEPCurve conduit, XYZ pt)
