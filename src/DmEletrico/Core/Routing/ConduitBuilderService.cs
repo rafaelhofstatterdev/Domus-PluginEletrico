@@ -464,11 +464,10 @@ namespace DmEletrico.Core.Routing
         /// <summary>Decide teto/parede uma vez por aresta (usado por conector E caminho).</summary>
         private static bool DecidirViaTeto(XYZ a, XYZ b, CaminhoConduite caminho)
         {
-            if (caminho == CaminhoConduite.Parede) return false;
-            if (caminho == CaminhoConduite.Teto) return true;
-            // Ambos: alturas diferentes → teto (sobe/desce na parede); mesma altura → parede.
-            var tol = UnitUtils.ConvertToInternalUnits(0.30, UnitTypeId.Meters);
-            return Math.Abs(a.Z - b.Z) > tol;
+            // SÓ "Teto" sobe à espinha. "Ambos" e "Parede" roteiam direto no plano
+            // (menor caminho) — subir ao teto e voltar seria um desvio enorme para
+            // dispositivos baixos (interruptor, tomada, caixa de passagem).
+            return caminho == CaminhoConduite.Teto;
         }
 
         private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, bool viaTeto, DmProjectSettings settings)
@@ -624,12 +623,15 @@ namespace DmEletrico.Core.Routing
 
             var loc = Origem(e);
 
-            // viaTeto: AMBAS as pontas saem/entram POR CIMA (na parede o trecho fica
-            // vertical). Senão, sai pela lateral em direção ao outro dispositivo.
-            bool subir = viaTeto;
-
-            var horiz = new XYZ(outroPonto.X - loc.X, outroPonto.Y - loc.Y, 0);
-            XYZ? dirHoriz = horiz.IsZeroLength() ? null : horiz.Normalize();
+            // Direção desejada do conector:
+            //  - via teto → para CIMA (entra/sai pelo topo; na parede fica vertical);
+            //  - no plano → direto NA DIREÇÃO 3D do outro dispositivo (curto, como o
+            //    OFElétrico): se o alvo está abaixo, pega o conector de baixo; ao lado,
+            //    o lateral certo. Sem subir ao teto.
+            var paraAlvo = outroPonto - loc;
+            XYZ desejada = viaTeto
+                ? XYZ.BasisZ
+                : (paraAlvo.IsZeroLength() ? XYZ.BasisX : paraAlvo.Normalize());
 
             var centro = CentroDe(e);
 
@@ -649,15 +651,8 @@ namespace DmEletrico.Core.Routing
                 var paraFora = c.Origin - centro;
                 if (!paraFora.IsZeroLength() && eixo.DotProduct(paraFora.Normalize()) < -0.3) continue;
 
-                // Maior = melhor.
-                //  - via teto → fortíssima preferência pelo conector para CIMA (eixo.Z),
-                //    nas duas pontas → trecho na parede fica VERTICAL;
-                //  - quando corre no plano → preferência pelo que aponta para o ALVO;
-                //  - penaliza apontar para BAIXO; desempate por axialidade.
-                var sUp = subir ? eixo.Z * 12.0 : 0.0;
-                var sHoriz = (!subir && dirHoriz != null) ? eixo.DotProduct(dirHoriz) * 6.0 : 0.0;
-                var sDown = eixo.Z < 0 ? eixo.Z * 4.0 : 0.0; // eixo.Z negativo → reduz score
-                var score = sUp + sHoriz + sDown + Axialidade(eixo) * 1.0;
+                // Maior = melhor: alinhamento com a direção desejada (domina) + axialidade.
+                var score = eixo.DotProduct(desejada) * 10.0 + Axialidade(eixo) * 1.5;
                 if (score > bestScore) { bestScore = score; best = c; }
             }
             return best ?? fallback;
