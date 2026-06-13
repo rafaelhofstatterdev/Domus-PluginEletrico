@@ -28,26 +28,10 @@
                 <TextBlock Text="Diâmetro do Conduíte" />
                 <ComboBox ItemsSource="{Binding Diametros}" SelectedItem="{Binding Diametro}" />
 
-                <Grid Margin="0,8,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <TextBlock Text="Ângulos em planta" />
-                        <ComboBox ItemsSource="{Binding AngulosPlanta}" SelectedItem="{Binding AnguloPlanta}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                        <TextBlock Text="Ângulos na parede" />
-                        <ComboBox ItemsSource="{Binding AngulosParede}" SelectedItem="{Binding AnguloParede}" />
-                    </StackPanel>
-                </Grid>
-
-                <TextBlock Text="Caminho do conduíte (parede / teto / ambos = mais curto)" />
+                <TextBlock Text="Caminho do conduíte" />
                 <ComboBox ItemsSource="{Binding Caminhos}" SelectedItem="{Binding Caminho}" />
-
-                <TextBlock Text="Orientação do conduíte (quando possível)" />
-                <ComboBox ItemsSource="{Binding Orientacoes}" SelectedItem="{Binding Orientacao}" />
+                <TextBlock Text="O roteamento é sempre ortogonal e pelo menor percurso."
+                           FontWeight="Normal" Foreground="#777" Margin="0,2,0,0" />
             </StackPanel>
         </GroupBox>
 

@@ -44,21 +44,8 @@ namespace DmEletrico.UI.Routing
         };
         public DiametroOption Diametro { get; set; }
 
-        public IReadOnlyList<AnguloPlanta> AngulosPlanta { get; } = new[]
-        {
-            AnguloPlanta.Livre, AnguloPlanta.A90, AnguloPlanta.A45
-        };
-        public AnguloPlanta AnguloPlanta { get; set; } = AnguloPlanta.A90;
-
-        public IReadOnlyList<AnguloParede> AngulosParede { get; } = new[] { AnguloParede.Livre, AnguloParede.A90 };
-        public AnguloParede AnguloParede { get; set; } = AnguloParede.A90;
-
-        public IReadOnlyList<OrientacaoConduite> Orientacoes { get; } = new[]
-        {
-            OrientacaoConduite.Default, OrientacaoConduite.Horizontal, OrientacaoConduite.Vertical
-        };
-        public OrientacaoConduite Orientacao { get; set; } = OrientacaoConduite.Default;
-
+        // Caminho: o roteamento é sempre ortogonal e pelo menor percurso; a opção só
+        // escolhe POR ONDE (parede, teto ou automático).
         public IReadOnlyList<CaminhoConduite> Caminhos { get; } = new[]
         {
             CaminhoConduite.Parede, CaminhoConduite.Teto, CaminhoConduite.Ambos
@@ -77,9 +64,6 @@ namespace DmEletrico.UI.Routing
             TipoTetoPisoId = TipoTetoPiso?.Id ?? "",
             TipoParedeId = TipoParede?.Id ?? TipoTetoPiso?.Id ?? "",
             DiametroForcadoMm = Diametro?.Valor ?? 0,
-            AnguloPlanta = AnguloPlanta,
-            AnguloParede = AnguloParede,
-            Orientacao = Orientacao,
             Caminho = Caminho
         };
     }
