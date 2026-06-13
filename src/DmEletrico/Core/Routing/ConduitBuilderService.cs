@@ -167,9 +167,7 @@ namespace DmEletrico.Core.Routing
             var locA = Origem(elemA);
             var locB = Origem(elemB);
 
-            // Decisão ÚNICA teto/parede para a aresta — conector e caminho coerentes.
-            var viaTeto = DecidirViaTeto(locA, locB, options.Caminho);
-
+            var viaTeto = options.Caminho == CaminhoConduite.Teto;
             var conA = EscolherConectorConduite(elemA, locB, viaTeto);
             var conB = EscolherConectorConduite(elemB, locA, viaTeto);
             var ptA = conA?.Origin ?? locA;
@@ -177,7 +175,7 @@ namespace DmEletrico.Core.Routing
 
             var spineZ = SpineElevation(conA, ptA, conB, ptB);
 
-            var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, viaTeto, settings);
+            var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options.Caminho, settings);
             var trechoLenM = UnitUtils.ConvertFromInternalUnits(OrthogonalRouter.Comprimento(caminho), UnitTypeId.Meters);
 
             var r = _calc.Calcular(new TrechoInput
@@ -246,8 +244,7 @@ namespace DmEletrico.Core.Routing
                 var a = elems[i]; var b = elems[i + 1];
                 var locA = Origem(a); var locB = Origem(b);
 
-                var viaTeto = DecidirViaTeto(locA, locB, options.Caminho);
-
+                var viaTeto = options.Caminho == CaminhoConduite.Teto;
                 var conA = EscolherConectorConduite(a, locB, viaTeto);
                 var conB = EscolherConectorConduite(b, locA, viaTeto);
                 var ptA = conA?.Origin ?? locA;
@@ -257,7 +254,7 @@ namespace DmEletrico.Core.Routing
 
                 report.Avisos.Add($"Trecho {i + 1}: conector A {DescreverEixo(conA)} | conector B {DescreverEixo(conB)}");
 
-                var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, viaTeto, settings);
+                var caminho = CaminhoComStubs(conA, ptA, conB, ptB, spineZ, options.Caminho, settings);
 
                 var diamConectorFeet = DiametroConectorFeet(conA, conB);
                 var diamMm = options.DiametroForcadoMm > 0
@@ -396,7 +393,7 @@ namespace DmEletrico.Core.Routing
             var da = alvo.CoordinateSystem.BasisZ;
             var dc = cc.CoordinateSystem.BasisZ;
             if (da.IsZeroLength() || dc.IsZeroLength()) return false;
-            if (da.Normalize().DotProduct(dc.Normalize()) > -0.95) return false;
+            if (da.Normalize().DotProduct(dc.Normalize()) > -0.7) return false;
 
             try { cc.ConnectTo(alvo); return true; }
             catch { return false; }
@@ -461,16 +458,7 @@ namespace DmEletrico.Core.Routing
             return AxisOut(c).Z > 0.5 ? p.Z + StubFeet : p.Z;
         }
 
-        /// <summary>Decide teto/parede uma vez por aresta (usado por conector E caminho).</summary>
-        private static bool DecidirViaTeto(XYZ a, XYZ b, CaminhoConduite caminho)
-        {
-            // SÓ "Teto" sobe à espinha. "Ambos" e "Parede" roteiam direto no plano
-            // (menor caminho) — subir ao teto e voltar seria um desvio enorme para
-            // dispositivos baixos (interruptor, tomada, caixa de passagem).
-            return caminho == CaminhoConduite.Teto;
-        }
-
-        private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, bool viaTeto, DmProjectSettings settings)
+        private static IList<XYZ> CaminhoComStubs(Connector? conA, XYZ ptA, Connector? conB, XYZ ptB, double spineZ, CaminhoConduite caminho, DmProjectSettings settings)
         {
             // Arranque curto: só o necessário para sair da caixa e caber o cotovelo.
             var stub = StubFeet;
@@ -489,19 +477,19 @@ namespace DmEletrico.Core.Routing
             else if (dA < minLeg) spineZ = startMid.Z;
             else if (dB < minLeg) spineZ = endMid.Z;
 
-            var middle = EscolherCaminho(startMid, endMid, spineZ, viaTeto, settings);
+            var middle = EscolherCaminho(startMid, endMid, spineZ, caminho, settings);
 
             // Se o caminho dobraria 180° logo após o stub (rota contra o eixo do
             // conector), abandona o stub desse lado e parte direto do conector.
             if (conA != null && Reverte(conA.Origin, startMid, middle, daPonta: true))
             {
                 startMid = conA.Origin;
-                middle = EscolherCaminho(startMid, endMid, spineZ, viaTeto, settings);
+                middle = EscolherCaminho(startMid, endMid, spineZ, caminho, settings);
             }
             if (conB != null && Reverte(conB.Origin, endMid, middle, daPonta: false))
             {
                 endMid = conB.Origin;
-                middle = EscolherCaminho(startMid, endMid, spineZ, viaTeto, settings);
+                middle = EscolherCaminho(startMid, endMid, spineZ, caminho, settings);
             }
 
             var pts = new List<XYZ>();
@@ -590,11 +578,13 @@ namespace DmEletrico.Core.Routing
             return result;
         }
 
-        private static IList<XYZ> EscolherCaminho(XYZ a, XYZ b, double spineZ, bool viaTeto, DmProjectSettings settings)
+        private static IList<XYZ> EscolherCaminho(XYZ a, XYZ b, double spineZ, CaminhoConduite caminho, DmProjectSettings settings)
         {
-            if (settings.Modo == ModoRoteamento.Direto)
+            // Ambos/Direto → linha reta (qualquer ângulo, incl. 45°), igual ao OFElétrico.
+            if (settings.Modo == ModoRoteamento.Direto || caminho == CaminhoConduite.Ambos)
                 return OrthogonalRouter.RouteDireto(a, b);
-            return viaTeto
+            // Teto → sobe à espinha, corre, desce; Parede → ortogonal no plano.
+            return caminho == CaminhoConduite.Teto
                 ? OrthogonalRouter.RouteTeto(a, b, spineZ)
                 : OrthogonalRouter.RouteParede(a, b);
         }
